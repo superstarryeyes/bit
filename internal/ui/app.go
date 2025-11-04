@@ -3,12 +3,13 @@ package ui
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
-	"github.com/superstarryeyes/bit/internal/export"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/superstarryeyes/bit/internal/export"
 )
 
 func InitialModel() (model, error) {
@@ -140,7 +141,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.resetConfirmations()
 
 		switch msg.String() {
-		case "ctrl+c", "esc":
+		case "ctrl+c", "esc", "q":
 			return m, tea.Quit
 
 		case "e":
@@ -181,13 +182,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.uiState.focusedPanel = FocusedPanel((int(m.uiState.focusedPanel) - 1 + int(TotalPanels)) % int(TotalPanels))
 			m.textInput.input.Blur()
 
-		case "left":
+		case "left", "h":
 			return m.handlePanelNavigation(-1)
 
-		case "right":
+		case "right", "l":
 			return m.handlePanelNavigation(1)
 
-		case "up", "down":
+		case "up", "down", "k", "j":
 			return m, m.handleUpDownKeys(msg)
 
 		case "enter":
@@ -380,4 +381,12 @@ func (m model) View() string {
 		MaxWidth(m.uiState.width).
 		MaxHeight(m.uiState.height).
 		Render(content)
+}
+
+func isUpKey(txt string) bool {
+	return slices.Contains([]string{"up", "k"}, txt)
+}
+
+func isDownKey(txt string) bool {
+	return slices.Contains([]string{"down", "j"}, txt)
 }
