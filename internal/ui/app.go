@@ -147,6 +147,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if !(m.isInputMode()) {
 				return m, tea.Quit
 			}
+			fallthrough
 
 		case "e":
 			// Only enter export mode if text input is not focused
