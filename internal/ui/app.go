@@ -3,7 +3,6 @@ package ui
 import (
 	"fmt"
 	"os"
-	"slices"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -141,12 +140,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.resetConfirmations()
 
 		switch msg.String() {
-		case "ctrl+c", "esc", "q":
+		case "ctrl+c", "esc":
 			return m, tea.Quit
+		case "q":
+			// Only quit with q when text input is not focused
+			if !(m.isInputMode()) {
+				return m, tea.Quit
+			}
+			// If text input is focused, let it process the "q" normally
+			fallthrough
 
 		case "e":
 			// Only enter export mode if text input is not focused
-			if !(m.uiState.focusedPanel == TextInputPanel && m.textInput.mode == TextEntryMode && m.textInput.input.Focused()) {
+			if !(m.isInputMode()) {
 				m.handleEnterExportMode()
 				return m, nil
 			}
@@ -155,7 +161,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "r":
 			// Only randomize when not in text input mode
-			if !(m.uiState.focusedPanel == TextInputPanel && m.textInput.mode == TextEntryMode && m.textInput.input.Focused()) {
+			if !(m.isInputMode()) {
 				m.handleRandomize()
 				return m, nil
 			}
@@ -384,9 +390,13 @@ func (m model) View() string {
 }
 
 func isUpKey(txt string) bool {
-	return slices.Contains([]string{"up", "k"}, txt)
+	return txt == "up" || txt == "k"
 }
 
 func isDownKey(txt string) bool {
-	return slices.Contains([]string{"down", "j"}, txt)
+	return txt == "down" || txt == "j"
+}
+
+func (m *model) isInputMode() bool {
+	return m.uiState.focusedPanel == TextInputPanel && m.textInput.mode == TextEntryMode && m.textInput.input.Focused()
 }
