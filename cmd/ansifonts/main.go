@@ -23,6 +23,7 @@ func main() {
 	var shadowV int
 	var shadowStyle int
 	var alignment string
+	var rainbowMode bool
 	var list bool
 	var text string
 
@@ -30,6 +31,7 @@ func main() {
 	flag.StringVar(&textColor, "color", "", "Text color: ANSI code (31) or hex (#FF0000)")
 	flag.StringVar(&gradientColor, "gradient", "", "Gradient end color: ANSI code (34) or hex (#0000FF)")
 	flag.StringVar(&gradientDirection, "direction", "down", "Gradient direction: down, up, right, left")
+	flag.BoolVar(&rainbowMode, "rainbow", false, "Enable rainbow color effect")
 	flag.IntVar(&charSpacing, "char-spacing", 2, "Character spacing (0 to 10)")
 	flag.IntVar(&wordSpacing, "word-spacing", 2, "Word spacing (0 to 20)")
 	flag.IntVar(&lineSpacing, "line-spacing", 1, "Line spacing (0 to 10)")
@@ -58,6 +60,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  %s -font dogica -color 31 -gradient 34 \"Gradient\"\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  %s -font dogica -color \"#FF0000\" -gradient \"#0000FF\" \"Hex Gradient\"\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  %s -font pressstart -color 32 -gradient 93 -direction right \"Cool\"\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  %s -font pressstart -rainbow \"Rainbow!\"\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  %s -font gohufontb -color 91 -char-spacing 5 \"Spaced\"\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  %s -font pixeloperator -color 95 -shadow -shadow-h 2 -shadow-v 1 \"Shadow\"\n", os.Args[0])
 	}
@@ -173,8 +176,10 @@ func main() {
 	// Set colors (supports both ANSI codes and hex)
 	options.TextColor = parseColor(textColor, "#FFFFFF")
 
-	// Set gradient
-	if gradientColor != "" {
+	// Set color mode (rainbow takes precedence over gradient)
+	if rainbowMode {
+		options.ColorMode = ansifonts.Rainbow
+	} else if gradientColor != "" {
 		options.GradientColor = parseColor(gradientColor, options.TextColor)
 
 		// Set gradient direction
@@ -192,6 +197,9 @@ func main() {
 		}
 
 		options.UseGradient = true
+		options.ColorMode = ansifonts.Gradient
+	} else {
+		options.ColorMode = ansifonts.SingleColor
 	}
 
 	// Set shadow

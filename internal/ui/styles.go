@@ -204,6 +204,18 @@ func createPanelStyles(panelWidth int) (map[string]lipgloss.Style, map[string]li
 			Padding(0, 1).
 			Width(panelWidth).
 			Height(1),
+		"background": lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color(ColorPalette["Background"])).
+			Padding(0, 1).
+			Width(panelWidth).
+			Height(1),
+		"animation": lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color(ColorPalette["Animation"])).
+			Padding(0, 1).
+			Width(panelWidth).
+			Height(1),
 	}
 
 	selectedStyles := map[string]lipgloss.Style{
@@ -275,6 +287,22 @@ func createPanelStyles(panelWidth int) (map[string]lipgloss.Style, map[string]li
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color(ColorPalette["Shadow"])).
 			Background(lipgloss.Color(ColorPalette["Shadow"])).
+			Foreground(lipgloss.Color(ColorPalette["White"])).
+			Padding(0, 1).
+			Width(panelWidth).
+			Height(1),
+		"background": lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color(ColorPalette["Background"])).
+			Background(lipgloss.Color(ColorPalette["Background"])).
+			Foreground(lipgloss.Color(ColorPalette["White"])).
+			Padding(0, 1).
+			Width(panelWidth).
+			Height(1),
+		"animation": lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color(ColorPalette["Animation"])).
+			Background(lipgloss.Color(ColorPalette["Animation"])).
 			Foreground(lipgloss.Color(ColorPalette["White"])).
 			Padding(0, 1).
 			Width(panelWidth).

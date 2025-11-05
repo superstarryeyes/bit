@@ -408,6 +408,9 @@ func (m *model) handleColorPanelUpdate(msg tea.KeyMsg) {
 				newIndex += int(TotalGradientDirections)
 			}
 			m.color.gradientDirection = GradientDirection(newIndex)
+		case RainbowMode:
+			// Toggle rainbow mode with up/down
+			m.color.rainbowEnabled = !m.color.rainbowEnabled
 		}
 		m.renderText()
 	}
@@ -520,6 +523,118 @@ func (m *model) handleShadowStyle(direction string) {
 		m.shadow.style = (m.shadow.style + 1) % len(shadowStyleOptions)
 	} else {
 		m.shadow.style = (m.shadow.style - 1 + len(shadowStyleOptions)) % len(shadowStyleOptions)
+	}
+}
+
+// handleBackgroundPanelUpdate handles background panel keyboard input
+func (m *model) handleBackgroundPanelUpdate(msg tea.KeyMsg) {
+	switch msg.String() {
+	case "tab":
+		m.background.subMode = BackgroundSubMode((int(m.background.subMode) + 1) % int(TotalBackgroundSubModes))
+	case "up", "down":
+		switch m.background.subMode {
+		case BackgroundTypeMode:
+			m.handleBackgroundType(msg.String())
+		}
+	}
+}
+
+// handleBackgroundType handles background type selection
+func (m *model) handleBackgroundType(direction string) {
+	if direction == "up" {
+		m.background.backgroundType = BackgroundType((int(m.background.backgroundType) + 1) % int(TotalBackgroundTypes))
+	} else {
+		m.background.backgroundType = BackgroundType((int(m.background.backgroundType) - 1 + int(TotalBackgroundTypes)) % int(TotalBackgroundTypes))
+	}
+
+	// Initialize or clear background effects based on type
+	if m.background.backgroundType == BackgroundNone {
+		m.background.enabled = false
+		m.background.lavaLamp = nil
+		m.background.wavyGrid = nil
+		m.background.ticker = nil
+	} else {
+		m.background.enabled = true
+
+		// Calculate background dimensions (use main display area)
+		controlPanelsHeight := 3
+		if m.uiState.usesTwoRows {
+			controlPanelsHeight = 8
+		}
+		controlsHeight := 1
+		titleHeight := 1
+		minRequiredHeight := titleHeight + controlPanelsHeight + controlsHeight + 2
+		availableForText := m.uiState.height - minRequiredHeight
+		minTextHeight := 3
+		bgHeight := max(availableForText, minTextHeight)
+		bgWidth := m.uiState.width
+
+		// Initialize the selected background type
+		switch m.background.backgroundType {
+		case BackgroundLavaLamp:
+			if m.background.lavaLamp == nil {
+				m.background.lavaLamp = NewLavaLamp(bgWidth, bgHeight)
+			}
+			m.background.wavyGrid = nil
+			m.background.ticker = nil
+			m.background.starfield = nil
+		case BackgroundWavyGrid:
+			if m.background.wavyGrid == nil {
+				m.background.wavyGrid = NewWavyGrid(bgWidth, bgHeight)
+			}
+			m.background.lavaLamp = nil
+			m.background.ticker = nil
+			m.background.starfield = nil
+		case BackgroundTicker:
+			if m.background.ticker == nil {
+				m.background.ticker = NewTicker("★ ANSI ART ★")
+			}
+			m.background.lavaLamp = nil
+			m.background.wavyGrid = nil
+			m.background.starfield = nil
+		case BackgroundStarfield:
+			if m.background.starfield == nil {
+				m.background.starfield = NewStarfield(bgWidth, bgHeight)
+			}
+			m.background.lavaLamp = nil
+			m.background.wavyGrid = nil
+			m.background.ticker = nil
+		}
+	}
+}
+
+// handleAnimationPanelUpdate handles animation panel keyboard input
+func (m *model) handleAnimationPanelUpdate(msg tea.KeyMsg) {
+	switch msg.String() {
+	case "tab":
+		m.animation.subMode = AnimationSubMode((int(m.animation.subMode) + 1) % int(TotalAnimationSubModes))
+	case "up", "down":
+		switch m.animation.subMode {
+		case AnimationTypeMode:
+			m.handleAnimationType(msg.String())
+		case AnimationSpeedMode:
+			m.handleAnimationSpeed(msg.String())
+		}
+	}
+}
+
+// handleAnimationType handles animation type selection
+func (m *model) handleAnimationType(direction string) {
+	if direction == "up" {
+		m.animation.animationType = AnimationType((int(m.animation.animationType) + 1) % int(TotalAnimationTypes))
+	} else {
+		m.animation.animationType = AnimationType((int(m.animation.animationType) - 1 + int(TotalAnimationTypes)) % int(TotalAnimationTypes))
+	}
+	// Reset scroll offset when changing animation type
+	m.animation.scrollOffset = 0
+}
+
+// handleAnimationSpeed handles animation speed selection
+func (m *model) handleAnimationSpeed(direction string) {
+	if direction == "up" {
+		m.animation.speed = AnimationSpeed((int(m.animation.speed) + 1) % int(TotalAnimationSpeeds))
+	} else {
+		m.animation.speed = AnimationSpeed((int(m.animation.speed) - 1 + int(TotalAnimationSpeeds)) % int(TotalAnimationSpeeds))
 	}
 }
 

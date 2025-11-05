@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/superstarryeyes/bit/internal/export"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -98,6 +99,22 @@ func InitialModel() (model, error) {
 			showWarning:      false,
 			subMode:          HorizontalShadowMode, // Start with horizontal shadow
 		},
+		background: backgroundModel{
+			enabled:        false,
+			backgroundType: BackgroundNone,
+			subMode:        BackgroundTypeMode,
+			lavaLamp:       nil, // Will be created when enabled
+			wavyGrid:       nil, // Will be created when enabled
+			ticker:         nil, // Will be created when enabled
+			starfield:      nil, // Will be created when enabled
+			frame:          0,
+		},
+		animation: animationModel{
+			animationType: AnimationNone,
+			speed:         AnimationMedium,
+			subMode:       AnimationTypeMode,
+			scrollOffset:  0,
+		},
 		export: exportModel{
 			active:           false,                            // Start with export mode disabled
 			format:           exportManager.GetDefaultFormat(), // Default export format
@@ -119,14 +136,80 @@ func InitialModel() (model, error) {
 	return m, nil
 }
 
+// TickMsg is sent to trigger animation updates
+type TickMsg struct{}
+
 func (m model) Init() tea.Cmd {
-	return textinput.Blink
+	return tea.Batch(textinput.Blink, tickCmd())
+}
+
+// tickCmd returns a command that sends a tick message for animation
+func tickCmd() tea.Cmd {
+	return tea.Tick(time.Millisecond*50, func(time.Time) tea.Msg {
+		return TickMsg{}
+	})
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
+	case TickMsg:
+		// Update animation frame
+		m.background.frame++
+
+		// Update backgrounds
+		if m.background.enabled {
+			switch m.background.backgroundType {
+			case BackgroundLavaLamp:
+				if m.background.lavaLamp != nil {
+					UpdateLavaLamp(m.background.lavaLamp)
+				}
+			case BackgroundWavyGrid:
+				if m.background.wavyGrid != nil {
+					UpdateWavyGrid(m.background.wavyGrid)
+				}
+			case BackgroundTicker:
+				if m.background.ticker != nil {
+					UpdateTicker(m.background.ticker, m.background.frame)
+				}
+			case BackgroundStarfield:
+				if m.background.starfield != nil {
+					UpdateStarfield(m.background.starfield)
+				}
+			}
+		}
+
+		// Update text scroll animation
+		if m.animation.animationType != AnimationNone {
+			var scrollSpeed int
+			switch m.animation.speed {
+			case AnimationSlow:
+				scrollSpeed = ScrollSpeedSlow
+			case AnimationMedium:
+				scrollSpeed = ScrollSpeedMedium
+			case AnimationFast:
+				scrollSpeed = ScrollSpeedFast
+			}
+
+			// Update scroll offset based on speed
+			if m.background.frame%scrollSpeed == 0 {
+				switch m.animation.animationType {
+				case AnimationScrollLeft:
+					m.animation.scrollOffset++
+				case AnimationScrollRight:
+					m.animation.scrollOffset--
+				}
+			}
+		}
+
+		// Re-render text if rainbow is enabled (for animation)
+		if m.color.rainbowEnabled {
+			m.renderText()
+		}
+
+		return m, tickCmd()
+
 	case tea.WindowSizeMsg:
 		return m, m.handleWindowResize(msg)
 
@@ -210,6 +293,10 @@ func (m *model) handleTabKey() tea.Cmd {
 		m.color.subMode = ColorSubMode((int(m.color.subMode) + 1) % int(TotalColorSubModes))
 	case ShadowPanel:
 		m.shadow.subMode = ShadowSubMode((int(m.shadow.subMode) + 1) % int(TotalShadowSubModes))
+	case BackgroundPanel:
+		m.background.subMode = BackgroundSubMode((int(m.background.subMode) + 1) % int(TotalBackgroundSubModes))
+	case AnimationPanel:
+		m.animation.subMode = AnimationSubMode((int(m.animation.subMode) + 1) % int(TotalAnimationSubModes))
 	default:
 		m.uiState.focusedPanel = FocusedPanel((int(m.uiState.focusedPanel) + 1) % int(TotalPanels))
 		m.textInput.input.Blur()
@@ -233,6 +320,10 @@ func (m *model) handleUpDownKeys(msg tea.KeyMsg) tea.Cmd {
 		m.handleScalePanelUpdate(msg)
 	case ShadowPanel:
 		m.handleShadowPanelUpdate(msg)
+	case BackgroundPanel:
+		m.handleBackgroundPanelUpdate(msg)
+	case AnimationPanel:
+		m.handleAnimationPanelUpdate(msg)
 	}
 	return nil
 }

@@ -32,6 +32,8 @@ var ColorPalette = map[string]string{
 	"ColorPanel":  "#FECA57",
 	"ScalePanel":  "#FF9FF3",
 	"Black":       "#000000",
+	"Background":  "#B19CD9",
+	"Animation":   "#FF6B9D",
 }
 
 // ANSIColorMap provides mappings from ANSI color codes to hex values

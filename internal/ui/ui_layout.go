@@ -64,9 +64,9 @@ func (m *model) calculateLayoutParameters() (int, int, int, int, int) {
 	}
 
 	// Calculate panel count based on layout
-	totalPanels := 6 // Single row: 6 panels
+	totalPanels := 8 // Single row: 8 panels
 	if m.uiState.usesTwoRows {
-		totalPanels = 3 // Two rows: 3 panels per row
+		totalPanels = 4 // Two rows: 4 panels per row
 	}
 
 	// Calculate panel width with fixed spacing
@@ -83,7 +83,7 @@ func (m *model) calculateLayoutParameters() (int, int, int, int, int) {
 }
 
 // createPanelContents creates the content strings for all panels
-func (m *model) createPanelContents(contentWidth int) (string, string, string, string, string, string) {
+func (m *model) createPanelContents(contentWidth int) (string, string, string, string, string, string, string, string) {
 	// Helper function to count non-empty rows
 	countNonEmptyRows := func(rows []string) int {
 		count := 0
@@ -158,8 +158,14 @@ func (m *model) createPanelContents(contentWidth int) (string, string, string, s
 		} else {
 			colorContent = truncateText("None", contentWidth)
 		}
-	} else { // Gradient direction mode
+	} else if m.color.subMode == GradientDirectionMode {
 		colorContent = truncateText(gradientDirectionOptions[int(m.color.gradientDirection)].Name, contentWidth)
+	} else { // Rainbow mode
+		if m.color.rainbowEnabled {
+			colorContent = truncateText("On", contentWidth)
+		} else {
+			colorContent = truncateText("Off", contentWidth)
+		}
 	}
 
 	var scaleContent string
@@ -196,14 +202,31 @@ func (m *model) createPanelContents(contentWidth int) (string, string, string, s
 		}
 	}
 
-	return textPanelContent, fontPanelContent, spacingContent, colorContent, scaleContent, shadowContent
+	// Background content based on current sub-mode
+	var backgroundContent string
+	if m.background.subMode == BackgroundTypeMode {
+		backgroundNames := []string{"None", "Lava Lamp", "Wavy Grid", "Ticker", "Starfield"}
+		backgroundContent = truncateText(backgroundNames[int(m.background.backgroundType)], contentWidth)
+	}
+
+	// Animation content based on current sub-mode
+	var animationContent string
+	if m.animation.subMode == AnimationTypeMode {
+		animationNames := []string{"None", "Scroll ←", "Scroll →"}
+		animationContent = truncateText(animationNames[int(m.animation.animationType)], contentWidth)
+	} else if m.animation.subMode == AnimationSpeedMode {
+		speedNames := []string{"Slow", "Medium", "Fast"}
+		animationContent = truncateText(speedNames[int(m.animation.speed)], contentWidth)
+	}
+
+	return textPanelContent, fontPanelContent, spacingContent, colorContent, scaleContent, shadowContent, backgroundContent, animationContent
 }
 
 // createStyledPanels creates styled panels with appropriate selection highlighting
-func (m *model) createStyledPanels(panelWidth int, textContent, fontContent, spacingContent, colorContent, scaleContent, shadowContent string) (string, string, string, string, string, string) {
+func (m *model) createStyledPanels(panelWidth int, textContent, fontContent, spacingContent, colorContent, scaleContent, shadowContent, backgroundContent, animationContent string) (string, string, string, string, string, string, string, string) {
 	normalStyles, selectedStyles := createPanelStyles(panelWidth)
 
-	var textPanel, fontPanel, spacingPanel, colorPanel, scalePanel, shadowPanel string
+	var textPanel, fontPanel, spacingPanel, colorPanel, scalePanel, shadowPanel, backgroundPanel, animationPanel string
 
 	if m.uiState.focusedPanel == TextInputPanel {
 		textPanel = selectedStyles["textInput"].Render(textContent)
@@ -258,11 +281,23 @@ func (m *model) createStyledPanels(panelWidth int, textContent, fontContent, spa
 		shadowPanel = normalStyles["shadow"].Render(shadowContent)
 	}
 
-	return textPanel, fontPanel, spacingPanel, colorPanel, scalePanel, shadowPanel
+	if m.uiState.focusedPanel == BackgroundPanel {
+		backgroundPanel = selectedStyles["background"].Render(backgroundContent)
+	} else {
+		backgroundPanel = normalStyles["background"].Render(backgroundContent)
+	}
+
+	if m.uiState.focusedPanel == AnimationPanel {
+		animationPanel = selectedStyles["animation"].Render(animationContent)
+	} else {
+		animationPanel = normalStyles["animation"].Render(animationContent)
+	}
+
+	return textPanel, fontPanel, spacingPanel, colorPanel, scalePanel, shadowPanel, backgroundPanel, animationPanel
 }
 
 // arrangeControlPanels arranges the control panels in either single or double row layout
-func (m *model) arrangeControlPanels(spacerWidth int, labeledTextPanel, labeledFontPanel, labeledSpacingPanel, labeledColorPanel, labeledScalePanel, labeledShadowPanel string) string {
+func (m *model) arrangeControlPanels(spacerWidth int, labeledTextPanel, labeledFontPanel, labeledSpacingPanel, labeledColorPanel, labeledScalePanel, labeledShadowPanel, labeledBackgroundPanel, labeledAnimationPanel string) string {
 	// Create spacer with calculated width
 	spacer := strings.Repeat(" ", spacerWidth)
 
@@ -272,22 +307,26 @@ func (m *model) arrangeControlPanels(spacerWidth int, labeledTextPanel, labeledF
 	// Arrange labeled control panels based on layout with width validation
 	var controlPanelsRow string
 	if m.uiState.usesTwoRows {
-		// First row: Text, Font, Spacing
+		// First row: Text, Font, Spacing, Color
 		firstRow := lipgloss.JoinHorizontal(lipgloss.Top,
 			labeledTextPanel,
 			spacer,
 			labeledFontPanel,
 			spacer,
 			labeledSpacingPanel,
+			spacer,
+			labeledColorPanel,
 		)
 
-		// Second row: Color, Scale, Shadow
+		// Second row: Scale, Shadow, Background, Animation
 		secondRow := lipgloss.JoinHorizontal(lipgloss.Top,
-			labeledColorPanel,
-			spacer,
 			labeledScalePanel,
 			spacer,
 			labeledShadowPanel,
+			spacer,
+			labeledBackgroundPanel,
+			spacer,
+			labeledAnimationPanel,
 		)
 
 		// Combine rows vertically WITHOUT extra spacing to eliminate unnecessary newline
@@ -298,7 +337,7 @@ func (m *model) arrangeControlPanels(spacerWidth int, labeledTextPanel, labeledF
 		controlPanelsHeight := labeledPanelHeight * 2 // 2 panel rows
 		controlPanelsRow = lipgloss.NewStyle().Height(controlPanelsHeight).Render(controlPanelsRow)
 	} else {
-		// Single row: all 6 panels - ensure they fit within terminal width
+		// Single row: all 8 panels - ensure they fit within terminal width
 		controlPanelsRow = lipgloss.JoinHorizontal(lipgloss.Top,
 			labeledTextPanel,
 			spacer,
@@ -311,6 +350,10 @@ func (m *model) arrangeControlPanels(spacerWidth int, labeledTextPanel, labeledF
 			labeledScalePanel,
 			spacer,
 			labeledShadowPanel,
+			spacer,
+			labeledBackgroundPanel,
+			spacer,
+			labeledAnimationPanel,
 		)
 
 		// Set a fixed height for the control panels area

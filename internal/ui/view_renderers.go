@@ -57,8 +57,49 @@ func (m model) renderControlsView() string {
 		Render(controls)
 }
 
-// renderTextDisplayView renders the main text display area
+// renderTextDisplayView renders the main text display area with optional background
 func (m model) renderTextDisplayView(mainDisplayHeight int) string {
+	// Render background if enabled
+	var backgroundLines []string
+	if m.background.enabled {
+		bgWidth := m.uiState.width - 4
+		bgHeight := mainDisplayHeight - 2
+
+		switch m.background.backgroundType {
+		case BackgroundLavaLamp:
+			if m.background.lavaLamp != nil {
+				// Update dimensions if needed
+				if m.background.lavaLamp.Width != bgWidth || m.background.lavaLamp.Height != bgHeight {
+					m.background.lavaLamp.Width = bgWidth
+					m.background.lavaLamp.Height = bgHeight
+				}
+				backgroundLines = RenderLavaLamp(m.background.lavaLamp)
+			}
+		case BackgroundWavyGrid:
+			if m.background.wavyGrid != nil {
+				// Update dimensions if needed
+				if m.background.wavyGrid.Width != bgWidth || m.background.wavyGrid.Height != bgHeight {
+					m.background.wavyGrid.Width = bgWidth
+					m.background.wavyGrid.Height = bgHeight
+				}
+				backgroundLines = RenderWavyGrid(m.background.wavyGrid)
+			}
+		case BackgroundTicker:
+			if m.background.ticker != nil {
+				backgroundLines = RenderTicker(m.background.ticker, bgWidth, bgHeight)
+			}
+		case BackgroundStarfield:
+			if m.background.starfield != nil {
+				// Update dimensions if needed
+				if m.background.starfield.Width != bgWidth || m.background.starfield.Height != bgHeight {
+					m.background.starfield.Width = bgWidth
+					m.background.starfield.Height = bgHeight
+				}
+				backgroundLines = RenderStarfield(m.background.starfield)
+			}
+		}
+	}
+
 	renderedText := strings.Join(m.uiState.renderedLines, "\n")
 	if renderedText == "" {
 		renderedText = "Enter some text to see the rendered output"
@@ -67,13 +108,36 @@ func (m model) renderTextDisplayView(mainDisplayHeight int) string {
 	// Apply text alignment within the viewport
 	alignedText := m.applyTextViewport(renderedText, m.uiState.width-4)
 
+	// Apply horizontal scrolling animation if enabled
+	if m.animation.animationType != AnimationNone {
+		alignedText = m.applyHorizontalScroll(alignedText)
+	}
+
 	// Clip the text vertically to fit within the allocated height
 	adjustedTextHeight := mainDisplayHeight
 	maxTextLines := max(adjustedTextHeight-1, 1)
 	clippedText := m.clipTextVertically(alignedText, maxTextLines)
 
+	// Composite background and text if background is enabled
+	var finalContent string
+	if m.background.enabled && len(backgroundLines) > 0 {
+		textLines := strings.Split(clippedText, "\n")
+
+		// Calculate centering for text overlay
+		textX := 0
+		textY := (len(backgroundLines) - len(textLines)) / 2
+		if textY < 0 {
+			textY = 0
+		}
+
+		composited := CompositeBackground(backgroundLines, textLines, textX, textY, m.uiState.width-4, adjustedTextHeight-1)
+		finalContent = strings.Join(composited, "\n")
+	} else {
+		finalContent = clippedText
+	}
+
 	fixedTextDisplayStyle := createFixedTextDisplayStyle(m.uiState.width-2, adjustedTextHeight-1)
-	return fixedTextDisplayStyle.Render(clippedText)
+	return fixedTextDisplayStyle.Render(finalContent)
 }
 
 // renderControlPanelsView renders all control panels
@@ -88,13 +152,15 @@ func (m model) renderControlPanelsView() string {
 	colorLabel := m.createColorLabel(labelWidth)
 	scaleLabel := m.createScaleLabel(labelWidth)
 	shadowLabel := m.createShadowLabel(labelWidth)
+	backgroundLabel := m.createBackgroundLabel(labelWidth)
+	animationLabel := m.createAnimationLabel(labelWidth)
 
 	// Create panel contents
-	textContent, fontContent, spacingContent, colorContent, scaleContent, shadowContent := m.createPanelContents(contentWidth)
+	textContent, fontContent, spacingContent, colorContent, scaleContent, shadowContent, backgroundContent, animationContent := m.createPanelContents(contentWidth)
 
 	// Create styled panels
-	textPanel, fontPanel, spacingPanel, colorPanel, scalePanel, shadowPanel := m.createStyledPanels(
-		panelWidth, textContent, fontContent, spacingContent, colorContent, scaleContent, shadowContent)
+	textPanel, fontPanel, spacingPanel, colorPanel, scalePanel, shadowPanel, backgroundPanel, animationPanel := m.createStyledPanels(
+		panelWidth, textContent, fontContent, spacingContent, colorContent, scaleContent, shadowContent, backgroundContent, animationContent)
 
 	// Create labeled panels
 	labeledTextPanel := lipgloss.JoinVertical(lipgloss.Left, textInputLabel, textPanel)
@@ -103,10 +169,12 @@ func (m model) renderControlPanelsView() string {
 	labeledColorPanel := lipgloss.JoinVertical(lipgloss.Left, colorLabel, colorPanel)
 	labeledScalePanel := lipgloss.JoinVertical(lipgloss.Left, scaleLabel, scalePanel)
 	labeledShadowPanel := lipgloss.JoinVertical(lipgloss.Left, shadowLabel, shadowPanel)
+	labeledBackgroundPanel := lipgloss.JoinVertical(lipgloss.Left, backgroundLabel, backgroundPanel)
+	labeledAnimationPanel := lipgloss.JoinVertical(lipgloss.Left, animationLabel, animationPanel)
 
 	// Arrange control panels
 	return m.arrangeControlPanels(spacerWidth, labeledTextPanel, labeledFontPanel,
-		labeledSpacingPanel, labeledColorPanel, labeledScalePanel, labeledShadowPanel)
+		labeledSpacingPanel, labeledColorPanel, labeledScalePanel, labeledShadowPanel, labeledBackgroundPanel, labeledAnimationPanel)
 }
 
 // createTextInputLabel creates the label for the text input panel
@@ -183,6 +251,8 @@ func (m model) createColorLabel(labelWidth int) string {
 		labelText = "Text Color 2"
 	case GradientDirectionMode:
 		labelText = "Gradient ↔/↕"
+	case RainbowMode:
+		labelText = "Rainbow 🌈"
 	default:
 		labelText = "Text Color 1"
 	}
@@ -212,6 +282,32 @@ func (m model) createShadowLabel(labelWidth int) string {
 
 	return lipgloss.NewStyle().
 		Foreground(lipgloss.Color(ColorPalette["Shadow"])).
+		Bold(true).
+		Render(truncateText(labelText, labelWidth))
+}
+
+// createBackgroundLabel creates the label for the background panel
+func (m model) createBackgroundLabel(labelWidth int) string {
+	labelText := "Background"
+	return lipgloss.NewStyle().
+		Foreground(lipgloss.Color(ColorPalette["Background"])).
+		Bold(true).
+		Render(truncateText(labelText, labelWidth))
+}
+
+// createAnimationLabel creates the label for the animation panel
+func (m model) createAnimationLabel(labelWidth int) string {
+	var labelText string
+	switch m.animation.subMode {
+	case AnimationTypeMode:
+		labelText = "Animation"
+	case AnimationSpeedMode:
+		labelText = "Anim Speed"
+	default:
+		labelText = "Animation"
+	}
+	return lipgloss.NewStyle().
+		Foreground(lipgloss.Color(ColorPalette["Animation"])).
 		Bold(true).
 		Render(truncateText(labelText, labelWidth))
 }
@@ -442,6 +538,93 @@ func (m *model) applyTextViewport(text string, maxWidth int) string {
 	}
 
 	return strings.Join(alignedLines, "\n")
+}
+
+// applyHorizontalScroll applies scrolling animation to text
+func (m *model) applyHorizontalScroll(text string) string {
+	if text == "" {
+		return text
+	}
+
+	lines := strings.Split(text, "\n")
+	var scrolledLines []string
+	viewportWidth := m.uiState.width - 4
+
+	for _, line := range lines {
+		// Strip ANSI codes to get the actual visible width
+		displayLine := stripANSI(line)
+		displayWidth := utf8.RuneCountInString(displayLine)
+
+		// Calculate the total width needed for seamless looping
+		// Add extra spacing between repeats
+		spacing := 10
+		loopWidth := displayWidth + spacing
+
+		// Normalize offset to loop width
+		normalizedOffset := m.animation.scrollOffset % loopWidth
+		if normalizedOffset < 0 {
+			normalizedOffset += loopWidth
+		}
+
+		// Build the scrolling line by repeating the content
+		// We need enough repeats to fill the viewport plus the scroll range
+		repeats := (viewportWidth / loopWidth) + 3
+		var repeatedContent strings.Builder
+		spacingStr := strings.Repeat(" ", spacing)
+
+		for i := 0; i < repeats; i++ {
+			repeatedContent.WriteString(line)
+			repeatedContent.WriteString(spacingStr)
+		}
+
+		// Extract the visible portion based on scroll offset
+		scrolledLine := m.extractScrolledPortion(repeatedContent.String(), normalizedOffset, viewportWidth)
+		scrolledLines = append(scrolledLines, scrolledLine)
+	}
+
+	return strings.Join(scrolledLines, "\n")
+}
+
+// extractScrolledPortion extracts a portion of text starting from an offset
+func (m *model) extractScrolledPortion(text string, offset, width int) string {
+	if text == "" {
+		return ""
+	}
+
+	// Convert to runes for proper character handling
+	runes := []rune(text)
+	visibleChars := make([]rune, 0, width)
+	visibleCount := 0
+	inEscape := false
+
+	// Track position in visible characters (ignoring ANSI codes)
+	currentPos := 0
+
+	for i := 0; i < len(runes) && visibleCount < width; i++ {
+		r := runes[i]
+
+		// Track ANSI escape sequences
+		if r == '\x1b' {
+			inEscape = true
+		}
+
+		if inEscape {
+			visibleChars = append(visibleChars, r)
+			if r == 'm' {
+				inEscape = false
+			}
+			continue
+		}
+
+		// Count visible characters
+		if currentPos >= offset {
+			visibleChars = append(visibleChars, r)
+			visibleCount++
+		}
+		currentPos++
+	}
+
+	return string(visibleChars)
 }
 
 // clipLineToMiddle clips a line to show the middle portion when it's too wide

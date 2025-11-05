@@ -32,6 +32,16 @@ func (m *model) renderText() {
 		Characters: font.Characters,
 	}
 
+	// Determine color mode
+	var colorMode ansifonts.ColorMode
+	if m.color.rainbowEnabled {
+		colorMode = ansifonts.Rainbow
+	} else if m.color.gradientEnabled && m.color.gradientColor != m.color.textColor {
+		colorMode = ansifonts.Gradient
+	} else {
+		colorMode = ansifonts.SingleColor
+	}
+
 	// Create render options from model settings
 	options := ansifonts.RenderOptions{
 		CharSpacing:            m.spacing.charSpacing,
@@ -42,6 +52,9 @@ func (m *model) renderText() {
 		GradientColor:          colorOptions[m.color.gradientColor].Hex,
 		GradientDirection:      ansifonts.GradientDirection(m.color.gradientDirection),
 		UseGradient:            m.color.gradientEnabled && m.color.gradientColor != m.color.textColor,
+		ColorMode:              colorMode,
+		RainbowFrame:           m.background.frame, // Use background frame for rainbow animation
+		RainbowSpeed:           RainbowAnimationSpeed,
 		ScaleFactor:            m.getScaleFactorFloat(),
 		ShadowEnabled:          m.shadow.enabled,
 		ShadowHorizontalOffset: m.shadow.horizontalOffset,

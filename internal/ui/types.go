@@ -36,6 +36,7 @@ type colorModel struct {
 	gradientColor     int               // Index into colorOptions array for gradient end color
 	gradientEnabled   bool              // Whether gradient is enabled
 	gradientDirection GradientDirection // Gradient direction
+	rainbowEnabled    bool              // Whether rainbow mode is enabled
 	subMode           ColorSubMode      // Color panel sub-mode
 }
 
@@ -54,6 +55,26 @@ type shadowModel struct {
 	style            int           // Index into shadowStyleOptions array (ANSI block styles)
 	showWarning      bool          // Whether to show the shadow warning message
 	subMode          ShadowSubMode // Shadow panel sub-mode
+}
+
+// backgroundModel handles background effects
+type backgroundModel struct {
+	enabled       bool              // Whether background is enabled
+	backgroundType BackgroundType   // Type of background effect
+	subMode       BackgroundSubMode // Background panel sub-mode
+	lavaLamp      *LavaLamp         // Lava lamp effect engine
+	wavyGrid      *WavyGrid         // Wavy grid effect engine
+	ticker        *Ticker           // Ticker/sidescroller effect
+	starfield     *Starfield        // Starfield effect engine
+	frame         int               // Animation frame counter
+}
+
+// animationModel handles text animation
+type animationModel struct {
+	animationType AnimationType      // Type of animation
+	speed         AnimationSpeed     // Animation speed
+	subMode       AnimationSubMode   // Animation panel sub-mode
+	scrollOffset  int                // Current horizontal scroll offset (in characters)
 }
 
 // exportModel handles export functionality
@@ -82,14 +103,16 @@ type uiStateModel struct {
 
 // model is the main application model composed of sub-models
 type model struct {
-	textInput textInputModel
-	font      fontModel
-	spacing   spacingModel
-	color     colorModel
-	scale     scaleModel
-	shadow    shadowModel
-	export    exportModel
-	uiState   uiStateModel
+	textInput  textInputModel
+	font       fontModel
+	spacing    spacingModel
+	color      colorModel
+	scale      scaleModel
+	shadow     shadowModel
+	background backgroundModel
+	animation  animationModel
+	export     exportModel
+	uiState    uiStateModel
 }
 
 // FontInfo holds information about available fonts
@@ -117,4 +140,50 @@ type ColorOption struct {
 // Gradient direction options
 type GradientDirectionOption struct {
 	Name string
+}
+
+// Background effect structures
+// LavaLamp represents the metaball/lava lamp effect with floating blobs
+type LavaLamp struct {
+	Blobs  []Blob
+	Width  int
+	Height int
+	Frame  int
+}
+
+// Blob represents a single floating blob for the lava lamp effect
+type Blob struct {
+	X, Y       float64 // Position
+	VX, VY     float64 // Velocity
+	Radius     float64 // Size
+	ColorIndex int     // Index into color palette
+}
+
+// WavyGrid represents an animated grid background with sine wave distortion
+type WavyGrid struct {
+	Width    int
+	Height   int
+	Frame    int
+	GridSize int
+}
+
+// Ticker represents a sidescroller ticker effect
+type Ticker struct {
+	Text   string
+	Offset int
+	Speed  int // How many frames before scrolling
+}
+
+// Starfield represents a 3D starfield effect with perspective projection
+type Starfield struct {
+	Stars  []Star
+	Width  int
+	Height int
+	Frame  int
+}
+
+// Star represents a single star/icon in 3D space
+type Star struct {
+	X, Y, Z float64 // 3D position (Z is depth)
+	Icon    string  // Display character
 }

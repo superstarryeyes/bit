@@ -57,6 +57,15 @@ const (
 	RightLeft
 )
 
+// ColorMode represents different color application modes
+type ColorMode int
+
+const (
+	SingleColor ColorMode = iota
+	Gradient
+	Rainbow
+)
+
 // ShadowStyle represents shadow style options
 type ShadowStyle int
 
@@ -82,6 +91,12 @@ type RenderOptions struct {
 	GradientDirection GradientDirection
 	UseGradient       bool
 
+	// Rainbow effect options
+	ColorMode      ColorMode // SingleColor, Gradient, or Rainbow
+	RainbowColors  []string  // Custom rainbow colors (hex codes), defaults to standard rainbow if empty
+	RainbowFrame   int       // Animation frame for rainbow cycling (default: 0)
+	RainbowSpeed   int       // How many frames before color shifts (default: 5)
+
 	// Text scale
 	ScaleFactor float64 // 0.5: half size, 1.0: normal, 2.0: double, 4.0: quadruple
 
@@ -104,6 +119,10 @@ func DefaultRenderOptions() RenderOptions {
 		Alignment:              CenterAlign,
 		TextColor:              "#FFFFFF",
 		UseGradient:            false,
+		ColorMode:              SingleColor,
+		RainbowColors:          []string{}, // Will use default rainbow colors if needed
+		RainbowFrame:           0,
+		RainbowSpeed:           5,
 		ScaleFactor:            1.0,
 		ShadowEnabled:          false,
 		ShadowHorizontalOffset: 0,
@@ -168,12 +187,26 @@ func (opts *RenderOptions) Validate() error {
 		return &ValidationError{Field: "ShadowStyle", Value: int(opts.ShadowStyle), Min: int(LightShade), Max: int(DarkShade)}
 	}
 
+	// Validate color mode
+	if opts.ColorMode < SingleColor || opts.ColorMode > Rainbow {
+		return &ValidationError{Field: "ColorMode", Value: int(opts.ColorMode), Min: int(SingleColor), Max: int(Rainbow)}
+	}
+
 	// Validate color format (basic hex color validation)
 	if !isValidHexColor(opts.TextColor) {
 		return &ColorValidationError{Field: "TextColor", Value: opts.TextColor}
 	}
 	if opts.UseGradient && !isValidHexColor(opts.GradientColor) {
 		return &ColorValidationError{Field: "GradientColor", Value: opts.GradientColor}
+	}
+
+	// Validate rainbow colors if provided
+	if opts.ColorMode == Rainbow && len(opts.RainbowColors) > 0 {
+		for i, color := range opts.RainbowColors {
+			if !isValidHexColor(color) {
+				return &ColorValidationError{Field: fmt.Sprintf("RainbowColors[%d]", i), Value: color}
+			}
+		}
 	}
 
 	return nil

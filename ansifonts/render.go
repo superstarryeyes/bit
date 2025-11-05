@@ -8,6 +8,17 @@ import (
 	"unicode/utf8"
 )
 
+// DefaultRainbowColors provides the standard rainbow color palette
+var DefaultRainbowColors = []string{
+	"#FF0000", // Red
+	"#FF7F00", // Orange
+	"#FFFF00", // Yellow
+	"#00FF00", // Green
+	"#00FFFF", // Cyan
+	"#0000FF", // Blue
+	"#8B00FF", // Violet
+}
+
 // DetectHalfPixelUsage checks if the current text rendering would use half-pixels
 // that would interfere with shadow rendering. This function should only return true
 // when shadows would actually cause visual artifacts.
@@ -148,13 +159,29 @@ func applyStylingAndShadow(plainBlock []string, options RenderOptions) []string 
 		shadowChar = shadowStyleOptions[options.ShadowStyle].Char
 	}
 
-	// Gradient color setup
-	isGradient := options.UseGradient && options.GradientColor != options.TextColor
+	// Determine color mode and setup colors
+	// Priority: ColorMode field takes precedence over legacy UseGradient
+	colorMode := options.ColorMode
+	if colorMode == SingleColor && options.UseGradient && options.GradientColor != options.TextColor {
+		colorMode = Gradient // Support legacy UseGradient flag
+	}
+
+	// Setup colors based on mode
 	startColorHex := options.TextColor
 	var endColorHex string
-	if isGradient {
+	var rainbowColors []string
+
+	if colorMode == Gradient {
 		endColorHex = options.GradientColor
+	} else if colorMode == Rainbow {
+		// Use custom rainbow colors if provided, otherwise use defaults
+		if len(options.RainbowColors) > 0 {
+			rainbowColors = options.RainbowColors
+		} else {
+			rainbowColors = DefaultRainbowColors
+		}
 	}
+
 	startR, startG, startB := hexToRGB(startColorHex)
 	endR, endG, endB := hexToRGB(endColorHex)
 
@@ -250,7 +277,16 @@ func applyStylingAndShadow(plainBlock []string, options RenderOptions) []string 
 			}
 
 			var cellColorHex string
-			if isGradient {
+			if colorMode == Rainbow && cell.isMain {
+				// Rainbow mode: cycle through rainbow colors based on character position and animation frame
+				// The frame offset creates the animation effect - colors shift as frame increments
+				frameOffset := 0
+				if options.RainbowSpeed > 0 {
+					frameOffset = options.RainbowFrame / options.RainbowSpeed
+				}
+				colorIdx := (cell.charIdx + cell.lineIdx + frameOffset) % len(rainbowColors)
+				cellColorHex = rainbowColors[colorIdx]
+			} else if colorMode == Gradient {
 				var factor float64
 				switch options.GradientDirection {
 				case UpDown: // Up-Down
@@ -279,6 +315,7 @@ func applyStylingAndShadow(plainBlock []string, options RenderOptions) []string 
 				b := int(float64(startB) + factor*float64(endB-startB))
 				cellColorHex = rgbToHex(clamp(r, 0, 255), clamp(g, 0, 255), clamp(b, 0, 255))
 			} else {
+				// Single color mode
 				if cell.isMain {
 					cellColorHex = startColorHex
 				} else {
