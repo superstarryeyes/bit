@@ -82,10 +82,10 @@ func (m *model) handleExportModeKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return m, nil
-	case "left", "h":
+	case "left", "shift+tab":
 		m.cycleExportFormat(-1)
 		return m, nil
-	case "right", "l":
+	case "right", "tab":
 		m.cycleExportFormat(1)
 		return m, nil
 	default:
@@ -173,6 +173,14 @@ func (m *model) handleTextPanelUpdate(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		// Not focused, handle as special command
 		return m, nil
+	case "k", "j":
+		if m.textInput.mode == TextEntryMode && m.textInput.input.Focused() {
+			// Let text input process the key
+			m.textInput.input, cmd = m.textInput.input.Update(msg)
+			return m, cmd
+		} else if m.textInput.mode == TextAlignmentMode {
+			m.handleTextAlignment(msg.String())
+		}
 	default:
 		if m.textInput.input.Focused() {
 			m.textInput.input, cmd = m.textInput.input.Update(msg)
