@@ -8,8 +8,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/superstarryeyes/bit/internal/export"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/superstarryeyes/bit/internal/export"
 )
 
 // ansiRegex is compiled once at package level for efficiency
@@ -267,7 +267,7 @@ func (m model) renderExportView() string {
 
 	instructions := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(ColorFaint)).
-		Render("←→: Select format, Write filename and press ENTER to export, ESC to cancel")
+		Render("TAB: Select format, Write filename and press ENTER to export, ESC to cancel")
 
 	cwd, err := os.Getwd()
 	if err != nil {

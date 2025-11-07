@@ -82,10 +82,10 @@ func (m *model) handleExportModeKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return m, nil
-	case "left", "shift+tab":
+	case "shift+tab":
 		m.cycleExportFormat(-1)
 		return m, nil
-	case "right", "tab":
+	case "tab":
 		m.cycleExportFormat(1)
 		return m, nil
 	default:
