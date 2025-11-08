@@ -24,7 +24,9 @@ func loadFontList() ([]FontInfo, error) {
 	for _, entry := range entries {
 		if filepath.Ext(entry.Name()) == ".bit" {
 			fontPath := filepath.Join("fonts", entry.Name())
-
+			if strings.Contains(fontPath, "\\") {
+				fontPath = strings.ReplaceAll(fontPath, "\\", "/")
+			}
 			// For lazy loading, we only load the font name from the file
 			// This is much more efficient than loading the entire font data
 			fontDataBytes, err := ansifonts.EmbeddedFonts.ReadFile(fontPath)
