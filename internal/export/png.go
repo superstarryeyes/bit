@@ -57,6 +57,16 @@ func DefaultPNGOptions() PNGOptions {
 	}
 }
 
+// TerminalAspectRatioPNGOptions returns PNG options that match terminal character
+// aspect ratio. Terminal characters are typically ~2:1 (height:width), so each
+// character cell is rendered twice as tall as it is wide.
+func TerminalAspectRatioPNGOptions() PNGOptions {
+	return PNGOptions{
+		CellWidth:  16, // 16 pixels wide (4x scale)
+		CellHeight: 32, // 32 pixels tall (2:1 height:width ratio)
+	}
+}
+
 // GeneratePNG creates a PNG image from rendered ANSI lines.
 // Returns PNG data as bytes or error.
 func GeneratePNG(lines []string, options PNGOptions) ([]byte, error) {

@@ -14,6 +14,12 @@ type ExportFormat struct {
 // Available export formats
 var SupportedFormats = []ExportFormat{
 	{
+		Name:        "PNG",
+		Extension:   ".png",
+		Description: "PNG image (transparent background)",
+		IsBinary:    true,
+	},
+	{
 		Name:        "TXT",
 		Extension:   ".txt",
 		Description: "Plain text file",
@@ -42,11 +48,5 @@ var SupportedFormats = []ExportFormat{
 		Name:        "SH",
 		Extension:   ".sh",
 		Description: "Bash script",
-	},
-	{
-		Name:        "PNG",
-		Extension:   ".png",
-		Description: "PNG image (16x scale, transparent)",
-		IsBinary:    true,
 	},
 }

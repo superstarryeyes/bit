@@ -26,13 +26,26 @@ func stripANSI(s string) string {
 // ExportManager handles exporting text in various formats
 type ExportManager struct {
 	formats []ExportFormat
+	basePath string // Base directory for exports (defaults to Desktop)
 }
 
 // NewExportManager creates a new export manager with supported formats
 func NewExportManager() *ExportManager {
 	return &ExportManager{
-		formats: SupportedFormats,
+		formats:  SupportedFormats,
+		basePath: getDesktopPath(),
 	}
+}
+
+// getDesktopPath returns the user's Desktop directory path
+func getDesktopPath() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		// Fallback to current directory if we can't get home
+		cwd, _ := os.Getwd()
+		return cwd
+	}
+	return filepath.Join(home, "Desktop")
 }
 
 // GetSupportedFormats returns the list of supported export formats
@@ -66,17 +79,11 @@ func (em *ExportManager) Export(content, filename, formatName string) error {
 		filename += format.Extension
 	}
 
-	// Get current working directory
-	cwd, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("failed to get current directory: %v", err)
-	}
-
 	// Create full file path using filepath.Join for safety
-	filePath := filepath.Join(cwd, filepath.Base(filename))
+	filePath := filepath.Join(em.basePath, filepath.Base(filename))
 
 	// Write content to file
-	err = os.WriteFile(filePath, []byte(content), 0644)
+	err := os.WriteFile(filePath, []byte(content), 0644)
 	if err != nil {
 		return fmt.Errorf("failed to write file: %v", err)
 	}
@@ -114,17 +121,11 @@ func (em *ExportManager) ExportBinary(content []byte, filename, formatName strin
 		filename += format.Extension
 	}
 
-	// Get current working directory
-	cwd, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("failed to get current directory: %v", err)
-	}
-
 	// Create full file path using filepath.Join for safety
-	filePath := filepath.Join(cwd, filepath.Base(filename))
+	filePath := filepath.Join(em.basePath, filepath.Base(filename))
 
 	// Write binary content to file
-	err = os.WriteFile(filePath, content, 0644)
+	err := os.WriteFile(filePath, content, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to write file: %v", err)
 	}
@@ -167,14 +168,8 @@ func (em *ExportManager) CheckFileExists(filename, formatName string) (bool, str
 		filename += format.Extension
 	}
 
-	// Get current working directory
-	cwd, err := os.Getwd()
-	if err != nil {
-		return false, "", fmt.Errorf("failed to get current directory: %v", err)
-	}
-
 	// Create full file path using filepath.Join for safety
-	filePath := filepath.Join(cwd, filepath.Base(filename))
+	filePath := filepath.Join(em.basePath, filepath.Base(filename))
 
 	// Check if file exists
 	if _, err := os.Stat(filePath); err == nil {

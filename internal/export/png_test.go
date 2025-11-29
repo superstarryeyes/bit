@@ -289,6 +289,80 @@ func TestDefaultPNGOptions(t *testing.T) {
 	}
 }
 
+func TestTerminalAspectRatioPNGOptions(t *testing.T) {
+	opts := TerminalAspectRatioPNGOptions()
+
+	// Terminal characters are ~2:1 height:width, so cells should be twice as tall as wide.
+	if opts.CellHeight != opts.CellWidth*2 {
+		t.Errorf("expected 2:1 height:width ratio, got width=%d height=%d",
+			opts.CellWidth, opts.CellHeight)
+	}
+}
+
+func TestGeneratePNG_TerminalAspectRatioDimensions(t *testing.T) {
+	// Three characters on one line with terminal aspect ratio
+	lines := []string{"\x1b[38;2;255;0;0m███\x1b[0m"}
+
+	opts := TerminalAspectRatioPNGOptions()
+	data, err := GeneratePNG(lines, opts)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	img, err := png.Decode(bytes.NewReader(data))
+	if err != nil {
+		t.Fatalf("failed to decode PNG: %v", err)
+	}
+
+	bounds := img.Bounds()
+	expectedWidth := 3 * opts.CellWidth
+	expectedHeight := opts.CellHeight
+	if bounds.Dx() != expectedWidth || bounds.Dy() != expectedHeight {
+		t.Errorf("expected %dx%d, got %dx%d", expectedWidth, expectedHeight, bounds.Dx(), bounds.Dy())
+	}
+}
+
+func TestGeneratePNG_ColorConsistency(t *testing.T) {
+	// Test that all characters with the same color code produce uniform color
+	// This mimics a single-color (non-gradient) rendering where every character
+	// has the same \x1b[38;2;R;G;Bm sequence
+	cyan := "\x1b[38;2;0;191;255m" // Deep Sky Blue
+	reset := "\x1b[0m"
+
+	// 4 cyan full blocks in a row
+	lines := []string{
+		cyan + "█" + reset + cyan + "█" + reset + cyan + "█" + reset + cyan + "█" + reset,
+	}
+
+	opts := TerminalAspectRatioPNGOptions()
+	data, err := GeneratePNG(lines, opts)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	img, err := png.Decode(bytes.NewReader(data))
+	if err != nil {
+		t.Fatalf("failed to decode PNG: %v", err)
+	}
+
+	// Sample color from center of each character cell
+	expectedR, expectedG, expectedB := uint32(0), uint32(191), uint32(255)
+	halfW, halfH := opts.CellWidth/2, opts.CellHeight/2
+
+	for charIdx := 0; charIdx < 4; charIdx++ {
+		x := charIdx*opts.CellWidth + halfW
+		y := halfH
+		r, g, b, _ := img.At(x, y).RGBA()
+		// RGBA returns 16-bit values, shift to 8-bit
+		r8, g8, b8 := r>>8, g>>8, b>>8
+
+		if r8 != expectedR || g8 != expectedG || b8 != expectedB {
+			t.Errorf("char %d: expected RGB(%d,%d,%d), got RGB(%d,%d,%d)",
+				charIdx, expectedR, expectedG, expectedB, r8, g8, b8)
+		}
+	}
+}
+
 func TestCountVisibleChars(t *testing.T) {
 	tests := []struct {
 		name     string

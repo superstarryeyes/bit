@@ -384,7 +384,7 @@ func (m *model) exportBinaryFormat(filename, formatName string) {
 
 	switch formatName {
 	case "PNG":
-		options := export.DefaultPNGOptions()
+		options := export.TerminalAspectRatioPNGOptions()
 		content, err = export.GeneratePNG(m.uiState.renderedLines, options)
 		if err != nil {
 			m.export.showConfirmation = true
