@@ -1,10 +1,14 @@
 package export
 
+// ABOUTME: Defines export format types and the list of supported export formats.
+// ABOUTME: Includes text formats (TXT, GO, JS, PY, RS, SH) and binary formats (PNG).
+
 // ExportFormat represents a supported export format
 type ExportFormat struct {
-	Name        string // Canonical key (e.g., "TXT")
+	Name        string // Canonical key (e.g., "TXT", "PNG")
 	Extension   string
 	Description string
+	IsBinary    bool // True for binary formats like PNG that need []byte handling
 }
 
 // Available export formats
@@ -38,5 +42,11 @@ var SupportedFormats = []ExportFormat{
 		Name:        "SH",
 		Extension:   ".sh",
 		Description: "Bash script",
+	},
+	{
+		Name:        "PNG",
+		Extension:   ".png",
+		Description: "PNG image (16x scale, transparent)",
+		IsBinary:    true,
 	},
 }

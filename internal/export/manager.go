@@ -1,3 +1,6 @@
+// ABOUTME: Export manager handles saving rendered ANSI art to various file formats.
+// ABOUTME: Supports text formats (TXT, GO, JS, PY, RS, SH) and binary formats (PNG).
+
 package export
 
 import (
@@ -79,6 +82,63 @@ func (em *ExportManager) Export(content, filename, formatName string) error {
 	}
 
 	return nil
+}
+
+// ExportBinary saves binary content (like PNG) to a file in the specified format
+func (em *ExportManager) ExportBinary(content []byte, filename, formatName string) error {
+	// Find the format
+	var format *ExportFormat
+	for _, f := range em.formats {
+		if f.Name == formatName {
+			format = &f
+			break
+		}
+	}
+
+	if format == nil {
+		return fmt.Errorf("unsupported format: %s", formatName)
+	}
+
+	if !format.IsBinary {
+		return fmt.Errorf("format %s is not a binary format, use Export() instead", formatName)
+	}
+
+	// Sanitize filename to prevent path traversal attacks
+	filename = SanitizeFilename(filename)
+	if filename == "" {
+		return fmt.Errorf("invalid filename")
+	}
+
+	// Ensure filename has the correct extension
+	if !strings.HasSuffix(filename, format.Extension) {
+		filename += format.Extension
+	}
+
+	// Get current working directory
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current directory: %v", err)
+	}
+
+	// Create full file path using filepath.Join for safety
+	filePath := filepath.Join(cwd, filepath.Base(filename))
+
+	// Write binary content to file
+	err = os.WriteFile(filePath, content, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write file: %v", err)
+	}
+
+	return nil
+}
+
+// IsBinaryFormat returns true if the format requires binary export
+func (em *ExportManager) IsBinaryFormat(name string) bool {
+	format := em.GetFormatByName(name)
+	if format != nil {
+		return format.IsBinary
+	}
+	return false
 }
 
 // CheckFileExists checks if a file already exists at the given path
