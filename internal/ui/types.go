@@ -1,8 +1,12 @@
+// ABOUTME: Type definitions for the TUI application models and state.
+// ABOUTME: Contains all sub-models for text, font, spacing, color, scale, shadow, and export.
+
 package ui
 
 import (
-	"github.com/superstarryeyes/bit/internal/export"
 	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/superstarryeyes/bit/internal/export"
+	"github.com/superstarryeyes/bit/internal/favorites"
 )
 
 // textInputModel handles text entry and alignment
@@ -58,17 +62,18 @@ type shadowModel struct {
 
 // exportModel handles export functionality
 type exportModel struct {
-	active              bool                  // Whether we're in export mode
-	format              string                // Selected export format
-	filenameInput       textinput.Model       // Text input for filename
-	showConfirmation    bool                  // Whether to show export confirmation in header
-	confirmationText    string                // The confirmation text to display
-	showOverwritePrompt bool                  // Whether to show overwrite confirmation
-	overwriteFilename   string                // Filename that would be overwritten
-	overwriteContent    string                // Content to write if user confirms
-	overwriteFormat     string                // Format for the overwrite
-	selectedButton      int                   // 0 = Yes, 1 = No
-	manager             *export.ExportManager // Export manager for format information
+	active               bool                  // Whether we're in export mode
+	format               string                // Selected export format
+	filenameInput        textinput.Model       // Text input for filename
+	showConfirmation     bool                  // Whether to show export confirmation in header
+	confirmationText     string                // The confirmation text to display
+	showOverwritePrompt  bool                  // Whether to show overwrite confirmation
+	overwriteFilename    string                // Filename that would be overwritten
+	overwriteContent     string                // Content to write if user confirms (text formats)
+	overwriteBinaryContent []byte              // Content to write if user confirms (binary formats like PNG)
+	overwriteFormat      string                // Format for the overwrite
+	selectedButton       int                   // 0 = Yes, 1 = No
+	manager              *export.ExportManager // Export manager for format information
 }
 
 // uiStateModel handles general UI state
@@ -80,6 +85,17 @@ type uiStateModel struct {
 	usesTwoRows   bool     // Cache the layout decision to prevent flickering
 }
 
+// favoritesModel handles favorites functionality
+type favoritesModel struct {
+	manager          *favorites.Manager // Favorites manager for persistence
+	active           bool               // Whether favorites view is open
+	selectedIndex    int                // Currently selected favorite in list
+	nameInput        textinput.Model    // Text input for naming new favorites
+	showNamePrompt   bool               // Whether showing the name input prompt
+	showConfirmation bool               // Whether to show confirmation message
+	confirmationText string             // Confirmation text to display
+}
+
 // model is the main application model composed of sub-models
 type model struct {
 	textInput textInputModel
@@ -89,6 +105,7 @@ type model struct {
 	scale     scaleModel
 	shadow    shadowModel
 	export    exportModel
+	favorites favoritesModel
 	uiState   uiStateModel
 }
 

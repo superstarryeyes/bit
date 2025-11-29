@@ -49,7 +49,7 @@ func (m model) renderControlsView() string {
 	controls := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(ColorGray)).
 		Align(lipgloss.Center).
-		Render("←→: Panels • ↑↓: Adjust • Tab: Modes • Enter: Apply • r: Random • e: Export • Esc: Quit ")
+		Render("←→: Panels • ↑↓: Adjust • Tab: Modes • r: Random • f: Favorites • e: Export • Esc: Quit")
 
 	return lipgloss.NewStyle().
 		Width(m.uiState.width).
@@ -619,4 +619,130 @@ func (m *model) createStyledPadding(length int) string {
 	// For simplicity, we'll use a space character with no special styling
 	// In a more complex implementation, we might track the last color used
 	return strings.Repeat(" ", length)
+}
+
+// renderFavoritesView renders the favorites UI when in favorites mode
+func (m model) renderFavoritesView() string {
+	// Show name prompt if saving
+	if m.favorites.showNamePrompt {
+		return m.renderFavoritesNamePrompt()
+	}
+
+	favList := m.favorites.manager.List()
+
+	// Title with confirmation if present
+	var title string
+	if m.favorites.showConfirmation {
+		title = titleStyle.Render(m.favorites.confirmationText)
+	} else {
+		title = titleStyle.Render("Favorites")
+	}
+
+	// Build favorites list
+	var listItems []string
+
+	if len(favList) == 0 {
+		emptyMsg := lipgloss.NewStyle().
+			Foreground(lipgloss.Color(ColorFaint)).
+			Italic(true).
+			Render("No favorites saved yet. Press 's' to save current art.")
+		listItems = append(listItems, emptyMsg)
+	} else {
+		selectedStyle := lipgloss.NewStyle().
+			Background(lipgloss.Color(ColorPalette["Font"])).
+			Foreground(lipgloss.Color(ColorWhite)).
+			Bold(true).
+			Padding(0, 1)
+
+		normalStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color(ColorWhite)).
+			Padding(0, 1)
+
+		fontStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color(ColorFaint))
+
+		for i, fav := range favList {
+			// Truncate name if too long
+			name := fav.Name
+			if len(name) > 30 {
+				name = name[:27] + "..."
+			}
+
+			// Build display line with font info
+			fontInfo := fontStyle.Render(fmt.Sprintf(" [%s]", fav.FontName))
+
+			var line string
+			if i == m.favorites.selectedIndex {
+				line = selectedStyle.Render(name) + fontInfo
+			} else {
+				line = normalStyle.Render(name) + fontInfo
+			}
+
+			listItems = append(listItems, line)
+		}
+	}
+
+	listContent := strings.Join(listItems, "\n")
+
+	// Instructions
+	var instructions string
+	if len(favList) > 0 {
+		instructions = lipgloss.NewStyle().
+			Foreground(lipgloss.Color(ColorFaint)).
+			Render("↑↓: Navigate • Enter: Load • d: Delete • s: Save Current • Esc: Close")
+	} else {
+		instructions = lipgloss.NewStyle().
+			Foreground(lipgloss.Color(ColorFaint)).
+			Render("s: Save Current • Esc: Close")
+	}
+
+	content := lipgloss.JoinVertical(lipgloss.Center,
+		title,
+		"",
+		listContent,
+		"",
+		instructions,
+	)
+
+	return lipgloss.NewStyle().
+		Width(m.uiState.width).
+		Height(m.uiState.height).
+		Align(lipgloss.Center, lipgloss.Center).
+		Render(content)
+}
+
+// renderFavoritesNamePrompt renders the name input prompt for saving favorites
+func (m model) renderFavoritesNamePrompt() string {
+	title := titleStyle.Render("Save as Favorite")
+
+	label := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(ColorPalette["Font"])).
+		Bold(true).
+		Render("Name:")
+
+	input := m.favorites.nameInput.View()
+
+	hint := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(ColorFaint)).
+		Render("(Leave empty to use text content as name)")
+
+	instructions := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(ColorFaint)).
+		Render("Enter: Save • Esc: Cancel")
+
+	content := lipgloss.JoinVertical(lipgloss.Center,
+		title,
+		"",
+		label,
+		input,
+		hint,
+		"",
+		instructions,
+	)
+
+	return lipgloss.NewStyle().
+		Width(m.uiState.width).
+		Height(m.uiState.height).
+		Align(lipgloss.Center, lipgloss.Center).
+		Render(content)
 }

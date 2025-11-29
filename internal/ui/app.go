@@ -1,3 +1,6 @@
+// ABOUTME: Main TUI application entry point and model initialization.
+// ABOUTME: Handles the BubbleTea program lifecycle, key events, and export functionality.
+
 package ui
 
 import (
@@ -9,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/superstarryeyes/bit/internal/export"
+	"github.com/superstarryeyes/bit/internal/favorites"
 )
 
 func InitialModel() (model, error) {
@@ -44,6 +48,22 @@ func InitialModel() (model, error) {
 
 	// Initialize export manager
 	exportManager := export.NewExportManager()
+
+	// Initialize favorites manager
+	favoritesManager, err := favorites.NewManager()
+	if err != nil {
+		return model{}, fmt.Errorf("failed to initialize favorites: %w", err)
+	}
+
+	// Initialize favorites name input
+	favNameInput := textinput.New()
+	favNameInput.Placeholder = "Enter name..."
+	favNameInput.Blur()
+	favNameInput.CharLimit = 50
+	favNameInput.Width = 30
+	favNameInput.ShowSuggestions = false
+	favNameInput.TextStyle = filenameInputTextStyle
+	favNameInput.PlaceholderStyle = filenameInputPlaceholderStyle
 
 	// Load available fonts (lazy loading - only metadata)
 	fonts, err := loadFontList()
@@ -106,6 +126,15 @@ func InitialModel() (model, error) {
 			confirmationText: "",            // No confirmation text initially
 			manager:          exportManager, // Store export manager in model
 		},
+		favorites: favoritesModel{
+			manager:          favoritesManager,
+			active:           false,
+			selectedIndex:    0,
+			nameInput:        favNameInput,
+			showNamePrompt:   false,
+			showConfirmation: false,
+			confirmationText: "",
+		},
 		uiState: uiStateModel{
 			focusedPanel:  TextInputPanel, // Start with text input panel
 			usesTwoRows:   false,          // Start with single row layout
@@ -133,6 +162,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Handle export mode first
 		if m.export.active {
 			return m.handleExportModeKeys(msg)
+		}
+
+		// Handle favorites mode
+		if m.favorites.active {
+			return m.handleFavoritesModeKeys(msg)
 		}
 
 		// Reset confirmations on any key press
@@ -175,6 +209,9 @@ func (m *model) handleInputModeKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		} else if m.export.filenameInput.Focused() {
 			// Handle filename input when focused
 			m.export.filenameInput, cmd = m.export.filenameInput.Update(msg)
+		} else if m.favorites.nameInput.Focused() {
+			// Handle favorites name input when focused
+			m.favorites.nameInput, cmd = m.favorites.nameInput.Update(msg)
 		}
 	}
 
@@ -208,6 +245,8 @@ func (m *model) handleNormalModeKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.handleEnterExportMode()
 	case "r":
 		m.handleRandomize()
+	case "f":
+		m.handleEnterFavoritesMode()
 	default:
 		// Handle text input when focused
 		if m.textInput.input.Focused() {
@@ -288,7 +327,15 @@ func (m *model) exportText() {
 		return
 	}
 
-	// Generate content based on selected format
+	formatName := m.export.format
+
+	// Check if this is a binary format (like PNG)
+	if m.export.manager.IsBinaryFormat(formatName) {
+		m.exportBinaryFormat(sanitizedFilename, formatName)
+		return
+	}
+
+	// Generate content based on selected format (text formats)
 	var content string
 	switch m.export.format {
 	case "TXT":
@@ -307,9 +354,6 @@ func (m *model) exportText() {
 		// Default to TXT if format not recognized
 		content = export.GenerateTXTCode(m.uiState.renderedLines)
 	}
-
-	// Use the canonical format name directly (e.g., "TXT", "GO", etc.)
-	formatName := m.export.format
 
 	// Check if file exists before attempting export
 	exists, finalFilename, err := m.export.manager.CheckFileExists(sanitizedFilename, formatName)
@@ -331,6 +375,69 @@ func (m *model) exportText() {
 
 	// File doesn't exist, proceed with export
 	m.performExport(content, sanitizedFilename, formatName)
+}
+
+// exportBinaryFormat handles export of binary formats like PNG
+func (m *model) exportBinaryFormat(filename, formatName string) {
+	var content []byte
+	var err error
+
+	switch formatName {
+	case "PNG":
+		options := export.TerminalAspectRatioPNGOptions()
+		content, err = export.GeneratePNG(m.uiState.renderedLines, options)
+		if err != nil {
+			m.export.showConfirmation = true
+			m.export.confirmationText = fmt.Sprintf("PNG generation failed: %v", err)
+			return
+		}
+	default:
+		m.export.showConfirmation = true
+		m.export.confirmationText = fmt.Sprintf("Unknown binary format: %s", formatName)
+		return
+	}
+
+	// Check if file exists before attempting export
+	exists, finalFilename, err := m.export.manager.CheckFileExists(filename, formatName)
+	if err != nil {
+		m.export.showConfirmation = true
+		m.export.confirmationText = fmt.Sprintf("Export failed: %v", err)
+		return
+	}
+
+	if exists {
+		// Show overwrite prompt with binary content
+		m.export.showOverwritePrompt = true
+		m.export.overwriteFilename = finalFilename
+		m.export.overwriteBinaryContent = content
+		m.export.overwriteContent = "" // Clear text content
+		m.export.overwriteFormat = formatName
+		m.export.selectedButton = 1 // Default to "No"
+		return
+	}
+
+	// File doesn't exist, proceed with export
+	m.performBinaryExport(content, filename, formatName)
+}
+
+// performBinaryExport writes binary content to file
+func (m *model) performBinaryExport(content []byte, filename, formatName string) {
+	err := m.export.manager.ExportBinary(content, filename, formatName)
+	if err != nil {
+		m.export.showConfirmation = true
+		m.export.confirmationText = fmt.Sprintf("Export failed: %v", err)
+		return
+	}
+
+	// Set export confirmation message using the actual filename that was saved
+	cwd, _ := os.Getwd()
+	sanitizedFilename := export.SanitizeFilename(filename)
+	format := m.export.manager.GetFormatByName(formatName)
+	if format != nil && !strings.HasSuffix(sanitizedFilename, format.Extension) {
+		sanitizedFilename += format.Extension
+	}
+	m.export.showConfirmation = true
+	m.export.confirmationText = fmt.Sprintf("Exported to %s/%s", cwd, sanitizedFilename)
 }
 
 // performExport actually writes the file
@@ -368,6 +475,11 @@ func (m model) View() string {
 	// If in export mode, show export UI instead of normal UI
 	if m.export.active {
 		return m.renderExportView()
+	}
+
+	// If in favorites mode, show favorites UI
+	if m.favorites.active {
+		return m.renderFavoritesView()
 	}
 
 	// Calculate heights for different sections
