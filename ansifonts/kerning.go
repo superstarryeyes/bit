@@ -5,22 +5,6 @@ import (
 	"unicode/utf8"
 )
 
-// runeAt is a helper to safely get a rune at a specific column index within a string.
-// It handles multi-byte runes correctly.
-func runeAt(s string, x int) (rune, bool) {
-	if x < 0 {
-		return ' ', false
-	}
-	i := 0
-	for _, r := range s {
-		if i == x {
-			return r, true
-		}
-		i++
-	}
-	return ' ', false
-}
-
 // maxRowLen is a helper to find the maximum rune length among all rows of a glyph,
 // effectively determining its bounding box width.
 func maxRowLen(rows []string) int {
@@ -50,140 +34,100 @@ func normalizeGlyph(glyph []string, height int) []string {
 			out[i] = row
 		} else {
 			// Pad with spaces (not empty strings) to maintain consistent width
-			out[i] = strings.Repeat(" ", maxRowLen(glyph))
+			out[i] = strings.Repeat(" ", maxLen)
 		}
 	}
 	return out
 }
 
-// getActivePixels extracts all non-space pixel coordinates for a given glyph.
-// These are the "ink" pixels that contribute to the character's visual form.
-func getActivePixels(glyph []string) map[pixelCoord]bool {
-	activePixels := make(map[pixelCoord]bool)
-	for y, row := range glyph {
-		for x := range utf8.RuneCountInString(row) {
-			r, _ := runeAt(row, x)
-			// ' ' (space) and '\u0000' (null character) are considered empty/background.
-			if r != ' ' && r != 0 {
-				activePixels[pixelCoord{float64(x), y, false}] = true
-			}
-		}
-	}
-	return activePixels
-}
-
-// Helper function to calculate absolute value for float64
-func abs(x float64) float64 {
-	if x < 0 {
-		return -x
-	}
-	return x
-}
-
-// checkCollisionWithSmartBuffer uses enhanced visual analysis to allow better kerning
-func checkCollisionWithSmartBuffer(glyphA, glyphB []string, widthA int, spacing int) bool {
-	aPixels := getActivePixels(glyphA)
-
-	// Check for half-pixel alignment issues
-	heightDiff := len(glyphA) - len(glyphB)
-	needsHalfPixelAdjustment := heightDiff%2 != 0
-
-	for yB, rowB := range glyphB {
-		for xB := 0; xB < utf8.RuneCountInString(rowB); xB++ {
-			rB, _ := runeAt(rowB, xB)
-			if rB == ' ' || rB == 0 {
-				continue
-			}
-
-			// Calculate the absolute X position of glyphB's pixel
-			xAbsB := float64(widthA + spacing + xB)
-			yAbsB := yB
-
-			// Apply half-pixel adjustment if needed
-			if needsHalfPixelAdjustment && yAbsB >= len(glyphB)/2 {
-				xAbsB += 0.5 // Adjust by half a pixel for the bottom half
-			}
-
-			// Check for direct overlap
-			for coord := range aPixels {
-				// Convert to float64 for comparison
-				coordX := coord.x
-				coordY := coord.y
-
-				// Check if this pixel would overlap with any pixel in glyphA
-				if abs(coordX-xAbsB) < 1.0 && coordY == yAbsB {
-					return true
-				}
-			}
-
-			// Enhanced adjacency check
-			conflictCount := 0
-			for dy := -1; dy <= 1; dy++ {
-				for dx := -1; dx <= 1; dx++ {
-					if dx == 0 && dy == 0 {
-						continue
-					}
-
-					checkX := xAbsB + float64(dx)
-					checkY := yAbsB + dy
-
-					for coord := range aPixels {
-						coordX := coord.x
-						coordY := coord.y
-
-						// Check proximity with half-pixel precision
-						xDist := abs(coordX - checkX)
-						yDist := abs(float64(coordY) - float64(checkY))
-
-						if xDist < 1.0 && yDist < 1.0 {
-							conflictCount++
-							// Weight horizontal conflicts more heavily
-							if dx != 0 && dy == 0 {
-								conflictCount += 2
-							}
-						}
-					}
-				}
-			}
-
-			// Only consider it a collision if there's significant conflict
-			if conflictCount >= 3 {
-				return true
-			}
-		}
-	}
-
-	return false
-}
-
-// computeKerning calculates the minimum horizontal spacing between two characters (glyphA and glyphB)
-// such that their active pixels do not touch (even by corners). This spacing is constrained to -1, 0, or +1.
+// computeKerning calculates the horizontal offset needed to align glyphB relative to glyphA
+// such that the minimum distance between their visible pixels is exactly 1 (touching).
+// This allows the renderer to add precise character spacing on top of this baseline.
 func computeKerning(glyphA, glyphB []string) int {
-	// If either glyph has no visual width (e.g., empty bitmap), return neutral spacing
-	if maxRowLen(glyphA) == 0 || maxRowLen(glyphB) == 0 {
-		return 0 // No adjustment needed for empty glyphs
+	if len(glyphA) == 0 || len(glyphB) == 0 {
+		return 0
 	}
 
-	hA, hB := len(glyphA), len(glyphB)
-	h := max(hA, hB)
-
+	// Normalize heights for line-by-line comparison
+	h := max(len(glyphA), len(glyphB))
 	a := normalizeGlyph(glyphA, h)
 	b := normalizeGlyph(glyphB, h)
+
 	widthA := maxRowLen(a)
-
-	// Check spacing options in order: -1 (tight), 0 (normal), +1 (extra space)
-	// Return the minimum safe spacing within our constraint range
-
-	// First try -1 (tight kerning/tucking)
-	if !checkCollisionWithSmartBuffer(a, b, widthA, -1) {
-		return -1 // Safe to tuck closer
+	if widthA == 0 {
+		return 0
 	}
 
-	// Then try 0 (normal spacing)
-	if !checkCollisionWithSmartBuffer(a, b, widthA, 0) {
-		return 0 // Normal spacing works
+	minDist := 1000 // effectively infinity
+	hasOverlap := false
+
+	// Global bounds for fallback (handling non-vertically overlapping characters)
+	maxAGlobal := -1
+	minBGlobal := 1000
+
+	for y := 0; y < h; y++ {
+		rowA := []rune(a[y])
+		rowB := []rune(b[y])
+
+		// Find rightmost pixel in A on this line
+		maxA := -1
+		for x := len(rowA) - 1; x >= 0; x-- {
+			if rowA[x] != ' ' && rowA[x] != 0 {
+				maxA = x
+				break
+			}
+		}
+
+		// Find leftmost pixel in B on this line
+		minB := -1
+		for x := 0; x < len(rowB); x++ {
+			if rowB[x] != ' ' && rowB[x] != 0 {
+				minB = x
+				break
+			}
+		}
+
+		// Update global bounds
+		if maxA != -1 {
+			if maxA > maxAGlobal {
+				maxAGlobal = maxA
+			}
+		}
+		if minB != -1 {
+			if minB < minBGlobal {
+				minBGlobal = minB
+			}
+		}
+
+		// If both have pixels on this line, calculate the horizontal distance
+		if maxA != -1 && minB != -1 {
+			// Calculate distance: (Start of B - Start of A)
+			// We imagine B starts at WidthA.
+			// PosA = maxA
+			// PosB = WidthA + minB
+			// Distance = PosB - PosA
+			dist := (widthA + minB) - maxA
+			if dist < minDist {
+				minDist = dist
+			}
+			hasOverlap = true
+		}
 	}
 
-	// Finally, use +1 (extra space needed)
-	return 1 // Need extra space to prevent collision
+	// If no lines overlap (e.g., punctuation marks at different heights like ' and .),
+	// fall back to the bounding box horizontal distance.
+	if !hasOverlap {
+		if maxAGlobal != -1 && minBGlobal != 1000 {
+			minDist = (widthA + minBGlobal) - maxAGlobal
+		} else {
+			// One or both glyphs are empty space
+			return 0
+		}
+	}
+
+	// We want the closest pixels to be adjacent (distance 1 pixel).
+	// This creates a visual gap of 0.
+	// The renderer will add the user's specific spacing on top of this.
+	// Adjustment = DesiredDistance(1) - ActualDistance(minDist)
+	return 1 - minDist
 }
