@@ -1,3 +1,6 @@
+// ABOUTME: Keyboard event handlers for the TUI application.
+// ABOUTME: Handles export mode, text input, font selection, and all panel interactions.
+
 package ui
 
 import (
@@ -6,6 +9,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/superstarryeyes/bit/ansifonts"
+	"github.com/superstarryeyes/bit/internal/favorites"
 )
 
 // handleWindowResize handles terminal window resize events
@@ -104,16 +108,25 @@ func (m *model) handleOverwritePromptKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		if m.export.selectedButton == 0 {
 			// Yes - proceed with overwrite
-			m.performExport(m.export.overwriteContent, m.export.overwriteFilename, m.export.overwriteFormat)
+			// Check if this is binary content (PNG) or text content
+			if len(m.export.overwriteBinaryContent) > 0 {
+				m.performBinaryExport(m.export.overwriteBinaryContent, m.export.overwriteFilename, m.export.overwriteFormat)
+			} else {
+				m.performExport(m.export.overwriteContent, m.export.overwriteFilename, m.export.overwriteFormat)
+			}
 		}
-		// Close overwrite prompt and export mode
+		// Close overwrite prompt and export mode, clear overwrite data
 		m.export.showOverwritePrompt = false
 		m.export.active = false
 		m.export.filenameInput.Blur()
+		m.export.overwriteBinaryContent = nil // Clear binary content
+		m.export.overwriteContent = ""        // Clear text content
 		return m, nil
 	case "esc":
-		// Cancel overwrite
+		// Cancel overwrite, clear overwrite data
 		m.export.showOverwritePrompt = false
+		m.export.overwriteBinaryContent = nil // Clear binary content
+		m.export.overwriteContent = ""        // Clear text content
 		return m, nil
 	}
 	return m, nil
@@ -584,4 +597,206 @@ func (m *model) handlePanelNavigation(direction int) (tea.Model, tea.Cmd) {
 	m.textInput.input.Blur()
 
 	return m, cmd
+}
+
+// handleEnterFavoritesMode enters favorites mode
+func (m *model) handleEnterFavoritesMode() {
+	m.favorites.active = true
+	m.favorites.showNamePrompt = false
+	m.favorites.selectedIndex = 0
+	m.favorites.nameInput.Blur()
+}
+
+// handleFavoritesModeKeys handles keyboard input when in favorites mode
+func (m *model) handleFavoritesModeKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
+	// Handle name input prompt
+	if m.favorites.showNamePrompt {
+		return m.handleFavoritesNamePromptKeys(msg)
+	}
+
+	favList := m.favorites.manager.List()
+
+	switch msg.String() {
+	case "esc":
+		m.favorites.active = false
+		m.favorites.showConfirmation = false
+		return m, nil
+
+	case "s":
+		// Save current art as favorite - show name prompt
+		m.favorites.showNamePrompt = true
+		m.favorites.nameInput.Focus()
+		m.favorites.nameInput.SetValue("")
+		return m, nil
+
+	case "up":
+		if len(favList) > 0 && m.favorites.selectedIndex > 0 {
+			m.favorites.selectedIndex--
+		}
+		return m, nil
+
+	case "down":
+		if len(favList) > 0 && m.favorites.selectedIndex < len(favList)-1 {
+			m.favorites.selectedIndex++
+		}
+		return m, nil
+
+	case "enter":
+		// Load selected favorite
+		if len(favList) > 0 && m.favorites.selectedIndex < len(favList) {
+			m.loadFavorite(&favList[m.favorites.selectedIndex])
+			m.favorites.active = false
+		}
+		return m, nil
+
+	case "d", "backspace", "delete":
+		// Delete selected favorite
+		if len(favList) > 0 && m.favorites.selectedIndex < len(favList) {
+			id := favList[m.favorites.selectedIndex].ID
+			err := m.favorites.manager.Remove(id)
+			if err == nil {
+				// Adjust selection if needed
+				newList := m.favorites.manager.List()
+				if m.favorites.selectedIndex >= len(newList) && m.favorites.selectedIndex > 0 {
+					m.favorites.selectedIndex--
+				}
+			}
+		}
+		return m, nil
+
+	default:
+		return m, cmd
+	}
+}
+
+// handleFavoritesNamePromptKeys handles keyboard input for the favorites name prompt
+func (m *model) handleFavoritesNamePromptKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
+	switch msg.String() {
+	case "esc":
+		m.favorites.showNamePrompt = false
+		m.favorites.nameInput.Blur()
+		return m, nil
+
+	case "enter":
+		name := m.favorites.nameInput.Value()
+		if name == "" {
+			// Use first 20 chars of text as default name
+			name = m.textInput.currentText
+			if len(name) > 20 {
+				name = name[:20]
+			}
+			name = strings.ReplaceAll(name, "\n", " ")
+		}
+
+		// Create favorite from current state
+		fav := m.createFavoriteFromCurrentState(name)
+		_, err := m.favorites.manager.Add(fav)
+		if err == nil {
+			m.favorites.showConfirmation = true
+			m.favorites.confirmationText = "Saved: " + name
+		}
+
+		m.favorites.showNamePrompt = false
+		m.favorites.nameInput.Blur()
+		return m, nil
+
+	default:
+		m.favorites.nameInput, cmd = m.favorites.nameInput.Update(msg)
+		return m, cmd
+	}
+}
+
+// createFavoriteFromCurrentState creates a Favorite from current model state
+func (m *model) createFavoriteFromCurrentState(name string) favorites.Favorite {
+	fontName := ""
+	if len(m.font.fonts) > 0 && m.font.selectedFont < len(m.font.fonts) {
+		fontName = m.font.fonts[m.font.selectedFont].Name
+	}
+
+	return favorites.Favorite{
+		Name:      name,
+		Text:      m.textInput.currentText,
+		FontName:  fontName,
+		Alignment: int(m.textInput.alignment),
+
+		CharSpacing: m.spacing.charSpacing,
+		WordSpacing: m.spacing.wordSpacing,
+		LineSpacing: m.spacing.lineSpacing,
+
+		TextColor:         m.color.textColor,
+		GradientEnabled:   m.color.gradientEnabled,
+		GradientColor:     m.color.gradientColor,
+		GradientDirection: int(m.color.gradientDirection),
+
+		Scale: int(m.scale.scale),
+
+		ShadowEnabled: m.shadow.enabled,
+		ShadowHOffset: m.shadow.horizontalOffset,
+		ShadowVOffset: m.shadow.verticalOffset,
+		ShadowStyle:   m.shadow.style,
+	}
+}
+
+// loadFavorite restores model state from a Favorite
+func (m *model) loadFavorite(fav *favorites.Favorite) {
+	// Restore text
+	m.textInput.currentText = fav.Text
+	m.textInput.textRows = strings.Split(fav.Text, "\n")
+	m.textInput.rowCursors = make([]int, len(m.textInput.textRows))
+	m.textInput.currentRow = 0
+	m.textInput.alignment = TextAlignment(fav.Alignment)
+
+	// Find font by name
+	fontFound := false
+	for i, font := range m.font.fonts {
+		if font.Name == fav.FontName {
+			m.font.selectedFont = i
+			fontFound = true
+			break
+		}
+	}
+	if !fontFound && len(m.font.fonts) > 0 {
+		m.font.selectedFont = 0 // Fallback to first font
+	}
+
+	// Restore spacing
+	m.spacing.charSpacing = fav.CharSpacing
+	m.spacing.wordSpacing = fav.WordSpacing
+	m.spacing.lineSpacing = fav.LineSpacing
+
+	// Restore color
+	m.color.textColor = fav.TextColor
+	m.color.gradientEnabled = fav.GradientEnabled
+	m.color.gradientColor = fav.GradientColor
+	m.color.gradientDirection = GradientDirection(fav.GradientDirection)
+
+	// Restore scale
+	m.scale.scale = TextScale(fav.Scale)
+
+	// Restore shadow
+	m.shadow.enabled = fav.ShadowEnabled
+	m.shadow.horizontalOffset = fav.ShadowHOffset
+	m.shadow.verticalOffset = fav.ShadowVOffset
+	m.shadow.style = fav.ShadowStyle
+
+	// Update shadow UI indices from canonical values
+	m.shadow.horizontalIndex = m.findShadowPixelIndex(fav.ShadowHOffset, shadowPixelOptions)
+	m.shadow.verticalIndex = m.findShadowPixelIndex(fav.ShadowVOffset, verticalShadowPixelOptions)
+
+	// Re-render
+	m.renderText()
+}
+
+// findShadowPixelIndex finds the index for a shadow pixel value
+func (m *model) findShadowPixelIndex(value int, options []ShadowPixelOption) int {
+	for i, opt := range options {
+		if opt.Pixels == value {
+			return i
+		}
+	}
+	return 0 // Default to first option
 }

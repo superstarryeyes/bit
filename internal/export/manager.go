@@ -1,3 +1,6 @@
+// ABOUTME: Export manager handles saving rendered ANSI art to various file formats.
+// ABOUTME: Supports text formats (TXT, GO, JS, PY, RS, SH) and binary formats (PNG).
+
 package export
 
 import (
@@ -23,13 +26,26 @@ func stripANSI(s string) string {
 // ExportManager handles exporting text in various formats
 type ExportManager struct {
 	formats []ExportFormat
+	basePath string // Base directory for exports (defaults to Desktop)
 }
 
 // NewExportManager creates a new export manager with supported formats
 func NewExportManager() *ExportManager {
 	return &ExportManager{
-		formats: SupportedFormats,
+		formats:  SupportedFormats,
+		basePath: getDesktopPath(),
 	}
+}
+
+// getDesktopPath returns the user's Desktop directory path
+func getDesktopPath() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		// Fallback to current directory if we can't get home
+		cwd, _ := os.Getwd()
+		return cwd
+	}
+	return filepath.Join(home, "Desktop")
 }
 
 // GetSupportedFormats returns the list of supported export formats
@@ -63,22 +79,67 @@ func (em *ExportManager) Export(content, filename, formatName string) error {
 		filename += format.Extension
 	}
 
-	// Get current working directory
-	cwd, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("failed to get current directory: %v", err)
-	}
-
 	// Create full file path using filepath.Join for safety
-	filePath := filepath.Join(cwd, filepath.Base(filename))
+	filePath := filepath.Join(em.basePath, filepath.Base(filename))
 
 	// Write content to file
-	err = os.WriteFile(filePath, []byte(content), 0644)
+	err := os.WriteFile(filePath, []byte(content), 0644)
 	if err != nil {
 		return fmt.Errorf("failed to write file: %v", err)
 	}
 
 	return nil
+}
+
+// ExportBinary saves binary content (like PNG) to a file in the specified format
+func (em *ExportManager) ExportBinary(content []byte, filename, formatName string) error {
+	// Find the format
+	var format *ExportFormat
+	for _, f := range em.formats {
+		if f.Name == formatName {
+			format = &f
+			break
+		}
+	}
+
+	if format == nil {
+		return fmt.Errorf("unsupported format: %s", formatName)
+	}
+
+	if !format.IsBinary {
+		return fmt.Errorf("format %s is not a binary format, use Export() instead", formatName)
+	}
+
+	// Sanitize filename to prevent path traversal attacks
+	filename = SanitizeFilename(filename)
+	if filename == "" {
+		return fmt.Errorf("invalid filename")
+	}
+
+	// Ensure filename has the correct extension
+	if !strings.HasSuffix(filename, format.Extension) {
+		filename += format.Extension
+	}
+
+	// Create full file path using filepath.Join for safety
+	filePath := filepath.Join(em.basePath, filepath.Base(filename))
+
+	// Write binary content to file
+	err := os.WriteFile(filePath, content, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write file: %v", err)
+	}
+
+	return nil
+}
+
+// IsBinaryFormat returns true if the format requires binary export
+func (em *ExportManager) IsBinaryFormat(name string) bool {
+	format := em.GetFormatByName(name)
+	if format != nil {
+		return format.IsBinary
+	}
+	return false
 }
 
 // CheckFileExists checks if a file already exists at the given path
@@ -107,14 +168,8 @@ func (em *ExportManager) CheckFileExists(filename, formatName string) (bool, str
 		filename += format.Extension
 	}
 
-	// Get current working directory
-	cwd, err := os.Getwd()
-	if err != nil {
-		return false, "", fmt.Errorf("failed to get current directory: %v", err)
-	}
-
 	// Create full file path using filepath.Join for safety
-	filePath := filepath.Join(cwd, filepath.Base(filename))
+	filePath := filepath.Join(em.basePath, filepath.Base(filename))
 
 	// Check if file exists
 	if _, err := os.Stat(filePath); err == nil {
