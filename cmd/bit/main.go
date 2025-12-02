@@ -28,6 +28,7 @@ func main() {
 	var alignment string
 	var list bool
 	var version bool
+	var loadFontPath string
 
 	flag.StringVar(&fontName, "font", "", "Font name to use (default: first available font)")
 	flag.StringVar(&textColor, "color", "", "Text color: ANSI code (31) or hex (#FF0000)")
@@ -44,6 +45,7 @@ func main() {
 	flag.StringVar(&alignment, "align", "center", "Text alignment: left, center, right")
 	flag.BoolVar(&list, "list", false, "List all available fonts")
 	flag.BoolVar(&version, "version", false, "Show version information")
+	flag.StringVar(&loadFontPath, "load", "", "Path to a custom font file (.bit) OR a directory of fonts")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Bit - Terminal ANSI Logo Designer & Font Library\n\n")
@@ -65,9 +67,21 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  bit -font ithaca -color \"#FF0000\" \"Red Hex\"            # Hex color\n")
 		fmt.Fprintf(os.Stderr, "  bit -font dogica -color 31 -gradient 34 \"Gradient\"     # Gradient\n")
 		fmt.Fprintf(os.Stderr, "  bit -font pressstart -color 32 -shadow \"Shadow\"        # With shadow\n")
+		fmt.Fprintf(os.Stderr, "  bit -load ./myfont.bit \"Custom\"                         # Load custom font file\n")
+		fmt.Fprintf(os.Stderr, "  bit -load ./fonts/ -list                              # Load custom font directory\n")
 	}
 
 	flag.Parse()
+
+	// Process custom font loading BEFORE other operations
+	if loadFontPath != "" {
+		loadedFonts, err := ansifonts.RegisterCustomPath(loadFontPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error loading custom fonts from '%s': %v\n", loadFontPath, err)
+			os.Exit(1)
+		}
+		fmt.Fprintf(os.Stderr, "Loaded %d custom fonts: %v\n", len(loadedFonts), loadedFonts)
+	}
 
 	// Show version
 	if version {

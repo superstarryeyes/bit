@@ -1,11 +1,7 @@
 package ui
 
 import (
-	"encoding/json"
 	"fmt"
-	"path"
-	"sort"
-	"strings"
 
 	"github.com/superstarryeyes/bit/ansifonts"
 )
@@ -13,53 +9,24 @@ import (
 // loadFontList loads only the font metadata without loading the actual font data
 // This provides a list of available fonts without consuming memory for all font data
 func loadFontList() ([]FontInfo, error) {
-	var fonts []FontInfo
-
-	// Read from embedded filesystem in ansifonts package
-	entries, err := ansifonts.EmbeddedFonts.ReadDir("fonts")
+	// Use the unified ListFonts function which includes both custom and embedded fonts
+	fontNames, err := ansifonts.ListFonts()
 	if err != nil {
-		return nil, fmt.Errorf("failed to read embedded fonts directory: %w", err)
+		return nil, fmt.Errorf("failed to list fonts: %w", err)
 	}
 
-	for _, entry := range entries {
-		if path.Ext(entry.Name()) == ".bit" {
-			fontPath := path.Join("fonts", entry.Name())
-
-			// For lazy loading, we only load the font name from the file
-			// This is much more efficient than loading the entire font data
-			fontDataBytes, err := ansifonts.EmbeddedFonts.ReadFile(fontPath)
-			if err != nil {
-				// Log or track skipped files for debugging
-				fmt.Printf("Warning: skipping font file %s: %v\n", entry.Name(), err)
-				continue
-			}
-
-			var fontMetadata struct {
-				Name string `json:"name"`
-			}
-			err = json.Unmarshal(fontDataBytes, &fontMetadata)
-			if err != nil {
-				// Log or track invalid JSON files for debugging
-				fmt.Printf("Warning: skipping invalid font JSON %s: %v\n", entry.Name(), err)
-				continue
-			}
-
-			fonts = append(fonts, FontInfo{
-				Name:   fontMetadata.Name,
-				Path:   fontPath,
-				Loaded: false, // Font data not loaded yet
-			})
-		}
+	if len(fontNames) == 0 {
+		return nil, fmt.Errorf("no fonts available - please ensure font files are properly embedded or loaded")
 	}
 
-	if len(fonts) == 0 {
-		return nil, fmt.Errorf("no valid fonts found in embedded directory - please ensure font files are properly embedded")
+	var fonts []FontInfo
+	for _, fontName := range fontNames {
+		fonts = append(fonts, FontInfo{
+			Name:   fontName,
+			Path:   "", // Path not relevant when using unified loader
+			Loaded: false, // Font data not loaded yet
+		})
 	}
-
-	// Sort fonts case-insensitively by name
-	sort.Slice(fonts, func(i, j int) bool {
-		return strings.ToLower(fonts[i].Name) < strings.ToLower(fonts[j].Name)
-	})
 
 	return fonts, nil
 }
@@ -72,20 +39,19 @@ func loadFontData(font *FontInfo) error {
 		return nil
 	}
 
-	// Load the full font data
-	fontDataBytes, err := ansifonts.EmbeddedFonts.ReadFile(font.Path)
+	// Use the unified LoadFont function which handles both custom and embedded fonts
+	loadedFont, err := ansifonts.LoadFont(font.Name)
 	if err != nil {
-		return fmt.Errorf("failed to read font file %s: %w", font.Path, err)
+		return fmt.Errorf("failed to load font %s: %w", font.Name, err)
 	}
 
-	var fontData FontData
-	err = json.Unmarshal(fontDataBytes, &fontData)
-	if err != nil {
-		return fmt.Errorf("failed to parse font JSON %s: %w", font.Path, err)
+	// Update the font with loaded data - convert ansifonts.FontData to ui.FontData
+	font.FontData = &FontData{
+		Name:       loadedFont.FontData.Name,
+		Author:     loadedFont.FontData.Author,
+		License:    loadedFont.FontData.License,
+		Characters: loadedFont.FontData.Characters,
 	}
-
-	// Update the font with loaded data
-	font.FontData = &fontData
 	font.Loaded = true
 
 	return nil
