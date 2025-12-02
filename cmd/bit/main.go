@@ -67,8 +67,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  bit -font ithaca -color \"#FF0000\" \"Red Hex\"            # Hex color\n")
 		fmt.Fprintf(os.Stderr, "  bit -font dogica -color 31 -gradient 34 \"Gradient\"     # Gradient\n")
 		fmt.Fprintf(os.Stderr, "  bit -font pressstart -color 32 -shadow \"Shadow\"        # With shadow\n")
-		fmt.Fprintf(os.Stderr, "  bit -load ./myfont.bit \"Custom\"                         # Load custom font file\n")
-		fmt.Fprintf(os.Stderr, "  bit -load ./fonts/ -list                              # Load custom font directory\n")
+		fmt.Fprintf(os.Stderr, "  bit -load ./myfont.bit \"Custom\"                        # Load custom font file\n")
+		fmt.Fprintf(os.Stderr, "  bit -load ./fonts/ -list                               # Load custom font directory\n")
 	}
 
 	flag.Parse()

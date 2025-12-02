@@ -121,6 +121,10 @@ bit -font ithaca -color 31 "Red Text"
 # List all fonts
 bit -list
 
+# Load custom font or directory of fonts (along with built-in fonts)
+bit -load ./myfont.bit
+bit -load ./fonts/
+
 # Show help
 bit -help
 ```
