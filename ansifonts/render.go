@@ -437,10 +437,9 @@ func renderTextWithFont(text string, fontData FontData, baseCharSpacing int, wor
 	charHeights := make(map[string]int)          // Track individual character heights
 	charOffsets := make(map[string]int)          // Track vertical offset for proper descender alignment
 	adjustedBitmaps := make(map[string][]string) // Cache adjusted character bitmaps
-	kerningCache := make(map[[2]string]int)
 
 	runes := []rune(text)
-	for i, r := range runes {
+	for _, r := range runes {
 		charStr := string(r)
 		if _, exists := charWidths[charStr]; !exists {
 			if charStr == " " {
@@ -499,30 +498,52 @@ func renderTextWithFont(text string, fontData FontData, baseCharSpacing int, wor
 				adjustedBitmaps[charStr] = []string{strings.Repeat(" ", defaultMissingCharWidth)}
 			}
 		}
-
-		// Pre-calculate kerning for pairs
-		if i < len(runes)-1 {
-			nextCharStr := string(runes[i+1])
-			pair := [2]string{charStr, nextCharStr}
-			if _, exists := kerningCache[pair]; !exists {
-				if charStr == " " || nextCharStr == " " {
-					kerningCache[pair] = 0
-				} else {
-					// Use adjusted bitmaps for kerning calculation to account for descender alignment
-					leftBitmap, leftExists := adjustedBitmaps[charStr]
-					rightBitmap, rightExists := adjustedBitmaps[nextCharStr]
-
-					if !leftExists || !rightExists {
-						kerningCache[pair] = 0
-					} else {
-						kerningCache[pair] = computeKerning(leftBitmap, rightBitmap)
-					}
-				}
-			}
-		}
 	}
 
 	var result []string
+
+	// Pre-calculate character-level kerning data (including half-pixel adjustments)
+	// This is calculated once per character pair, outside the row loop
+	type kerningData struct {
+		spacing         int
+		halfPixelAdjust float64
+	}
+	pairKerningData := make(map[[2]string]kerningData)
+
+	for i := 0; i < len(runes)-1; i++ {
+		charStr := string(runes[i])
+		nextCharStr := string(runes[i+1])
+
+		if charStr == " " || nextCharStr == " " {
+			pairKerningData[[2]string{charStr, nextCharStr}] = kerningData{spacing: 0, halfPixelAdjust: 0}
+			continue
+		}
+
+		// Use adjusted bitmaps for kerning calculation to account for descender alignment
+		leftBitmap, leftExists := adjustedBitmaps[charStr]
+		rightBitmap, rightExists := adjustedBitmaps[nextCharStr]
+
+		var optimalInterCharSpacing int
+		if !leftExists || !rightExists {
+			optimalInterCharSpacing = 0
+		} else {
+			optimalInterCharSpacing = computeKerning(leftBitmap, rightBitmap)
+		}
+
+		// Calculate half-pixel adjustment based on height difference between character pair
+		// If the combined heights differ by an odd number, we need a half-pixel adjustment
+		// for proper alignment
+		heightDiff := charHeights[charStr] - charHeights[nextCharStr]
+		var halfPixelAdjust float64
+		if heightDiff%2 != 0 {
+			halfPixelAdjust = 0.5
+		}
+
+		pairKerningData[[2]string{charStr, nextCharStr}] = kerningData{
+			spacing:         optimalInterCharSpacing,
+			halfPixelAdjust: halfPixelAdjust,
+		}
+	}
 
 	// Render the text row by row
 	for i := range maxCharHeight {
@@ -550,16 +571,11 @@ func renderTextWithFont(text string, fontData FontData, baseCharSpacing int, wor
 					}
 				} else {
 					prevCharTotalAdvance = float64(charWidths[prevCharStr])
-					optimalInterCharSpacing := kerningCache[[2]string{prevCharStr, charStr}]
 
-					// Handle half-pixel spacing for odd/even height differences
-					heightDiff := charHeights[prevCharStr] - charHeights[charStr]
-					halfPixelAdjustment := 0.0
-
-					// If heights differ by an odd number, adjust by half a pixel
-					if heightDiff%2 != 0 && i >= charHeights[charStr] {
-						halfPixelAdjustment = 0.5
-					}
+					// Use pre-calculated kerning data for this character pair
+					kd := pairKerningData[[2]string{prevCharStr, charStr}]
+					optimalInterCharSpacing := kd.spacing
+					halfPixelAdjustment := kd.halfPixelAdjust
 
 					if baseCharSpacing == 0 {
 						prevCharTotalAdvance += float64(optimalInterCharSpacing) + halfPixelAdjustment
