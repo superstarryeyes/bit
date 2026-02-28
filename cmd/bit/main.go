@@ -33,12 +33,11 @@ func main() {
 	var loadFontPath string
 	var fitFonts string
 	var fitScales string
-	var targetW int
-	var targetH int
-	var priority string
-	var limit int
-	var showDims bool
-	var noPreview bool
+	var fitWidth int
+	var fitHeight int
+	var fitPriority string
+	var fitLimit int
+	var fitShowDims bool
 
 	flag.StringVar(&fontName, "font", "", "Font name to use (default: first available font)")
 	flag.StringVar(&textColor, "color", "", "Text color: ANSI code (31) or hex (#FF0000)")
@@ -56,14 +55,13 @@ func main() {
 	flag.BoolVar(&list, "list", false, "List all available fonts")
 	flag.BoolVar(&version, "version", false, "Show version information")
 	flag.StringVar(&loadFontPath, "load", "", "Path to a custom font file (.bit) OR a directory of fonts")
-	flag.StringVar(&fitFonts, "fonts", "", "CSV list of fonts to test in fit mode")
-	flag.StringVar(&fitScales, "scales", "", "CSV list of scale factors to test in fit mode")
-	flag.IntVar(&targetW, "target-w", 0, "Target width for fit mode")
-	flag.IntVar(&targetH, "target-h", 0, "Target height for fit mode")
-	flag.StringVar(&priority, "priority", "width", "Fit priority: width or height")
-	flag.IntVar(&limit, "limit", 10, "Max results to show in fit mode")
-	flag.BoolVar(&showDims, "show-dims", false, "Show measured dimensions in fit mode")
-	flag.BoolVar(&noPreview, "no-preview", false, "Disable preview render in fit mode")
+	flag.StringVar(&fitFonts, "fit-fonts", "", "CSV list of fonts to test in fit mode")
+	flag.StringVar(&fitScales, "fit-scales", "", "CSV list of scale factors (e.g. 1.0,2.0) or scale steps (-1,0,1,2)")
+	flag.IntVar(&fitWidth, "fit-width", 0, "Target width for fit mode")
+	flag.IntVar(&fitHeight, "fit-height", 0, "Target height for fit mode")
+	flag.StringVar(&fitPriority, "fit-priority", "width", "Fit priority: width or height")
+	flag.IntVar(&fitLimit, "fit-limit", 30, "Max results to show in fit mode")
+	flag.BoolVar(&fitShowDims, "fit-show-dims", false, "Show measured dimensions in fit mode")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Bit - Terminal ANSI Logo Designer & Font Library\n\n")
@@ -87,12 +85,12 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  bit -font pressstart -color 32 -shadow \"Shadow\"        # With shadow\n")
 		fmt.Fprintf(os.Stderr, "  bit -load ./myfont.bit \"Custom\"                        # Load custom font file\n")
 		fmt.Fprintf(os.Stderr, "  bit -load ./fonts/ -list                               # Load custom font directory\n")
-		fmt.Fprintf(os.Stderr, "  bit -target-w 40 -target-h 10 \"Hello\"                  # Fit mode\n")
+		fmt.Fprintf(os.Stderr, "  bit -fit-width 40 -fit-height 10 -fit-show-dims \"Hello\"  # Fit mode\n")
 	}
 
 	flag.Parse()
 
-	fitMode := targetW > 0 || targetH > 0
+	fitMode := fitWidth > 0 || fitHeight > 0
 
 	// Process custom font loading BEFORE other operations
 	if loadFontPath != "" {
@@ -175,17 +173,8 @@ func main() {
 	}
 
 	// Convert scaleInt to actual scale factor
-	var scale float64
-	switch scaleInt {
-	case -1:
-		scale = 0.5 // 0.5x
-	case 0:
-		scale = 1.0 // 1x
-	case 1:
-		scale = 2.0 // 2x
-	case 2:
-		scale = 4.0 // 4x
-	default:
+	scale, ok := scaleFactorFromIndex(scaleInt)
+	if !ok {
 		scale = 1.0 // Default to 1x if invalid value provided
 		fmt.Fprintf(os.Stderr, "Warning: Invalid scale value '%d', using default scale (1x)\n", scaleInt)
 	}
@@ -260,7 +249,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		candidates, err := fit.FindBest(text, fontsToUse, scalesToUse, options, targetW, targetH, fit.Priority(priority))
+		candidates, err := fit.FindBest(text, fontsToUse, scalesToUse, options, fitWidth, fitHeight, fit.Priority(fitPriority))
 		if err != nil {
 			if missingErr, ok := err.(*fit.MissingFontError); ok {
 				fmt.Fprintf(os.Stderr, "Warning: skipped missing fonts: %s\n", strings.Join(missingErr.Missing, ", "))
@@ -275,35 +264,37 @@ func main() {
 			os.Exit(1)
 		}
 
-		if limit <= 0 || limit > len(candidates) {
-			limit = len(candidates)
+		if fitLimit <= 0 || fitLimit > len(candidates) {
+			fitLimit = len(candidates)
 		}
 
-		fmt.Println("Fit results:")
-		for i := 0; i < limit; i++ {
+		fontCache := make(map[string]*ansifonts.Font)
+		for i := 0; i < fitLimit; i++ {
 			candidate := candidates[i]
-			if showDims {
-				fmt.Printf("%2d. %s scale=%.2f %dx%d dw=%d dh=%d\n", i+1, candidate.Font, candidate.Scale, candidate.W, candidate.H, candidate.DW, candidate.DH)
-				continue
+			if fitShowDims {
+			fmt.Println(formatFitLine(i+1, candidate, fitWidth, fitHeight))
+		}
+
+			font, ok := fontCache[candidate.Font]
+			if !ok {
+				loadedFont, err := ansifonts.LoadFont(candidate.Font)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Error loading font '%s': %v\n", candidate.Font, err)
+					os.Exit(1)
+				}
+				font = loadedFont
+				fontCache[candidate.Font] = font
 			}
-			fmt.Printf("%2d. %s scale=%.2f dw=%d dh=%d\n", i+1, candidate.Font, candidate.Scale, candidate.DW, candidate.DH)
-		}
 
-		if noPreview {
-			return
-		}
-
-		best := candidates[0]
-		bestFont, err := ansifonts.LoadFont(best.Font)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error loading font '%s': %v\n", best.Font, err)
-			os.Exit(1)
-		}
-		options.ScaleFactor = best.Scale
-		fmt.Println()
-		preview := ansifonts.RenderTextWithOptions(text, bestFont, options)
-		for _, line := range preview {
-			fmt.Println(line)
+			previewOptions := options
+			previewOptions.ScaleFactor = candidate.Scale
+			preview := ansifonts.RenderTextWithOptions(text, font, previewOptions)
+			for _, line := range preview {
+				fmt.Println(line)
+			}
+			if i != fitLimit-1 {
+				fmt.Println()
+			}
 		}
 		return
 	}
@@ -358,9 +349,9 @@ func resolveFitScales(scalesCSV string, fallbackScale float64) ([]float64, error
 
 	values := make([]float64, 0, len(parts))
 	for _, raw := range parts {
-		value, err := strconv.ParseFloat(raw, 64)
+		value, err := parseScaleValue(raw)
 		if err != nil {
-			return nil, fmt.Errorf("invalid scale %q", raw)
+			return nil, err
 		}
 		values = append(values, value)
 	}
@@ -378,4 +369,66 @@ func splitCSV(value string) []string {
 		results = append(results, trimmed)
 	}
 	return results
+}
+
+func parseScaleValue(raw string) (float64, error) {
+	if isScaleIndex(raw) {
+		value, ok := scaleFactorFromIndex(mustAtoi(raw))
+		if !ok {
+			return 0, fmt.Errorf("invalid scale index %q", raw)
+		}
+		return value, nil
+	}
+
+	value, err := strconv.ParseFloat(raw, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid scale %q", raw)
+	}
+	if value < ansifonts.MinScaleFactor || value > ansifonts.MaxScaleFactor {
+		return 0, fmt.Errorf("scale %q out of range", raw)
+	}
+	return value, nil
+}
+
+func isScaleIndex(raw string) bool {
+	if strings.ContainsAny(raw, ".eE") {
+		return false
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil {
+		return false
+	}
+	_, ok := scaleFactorFromIndex(value)
+	return ok
+}
+
+func mustAtoi(raw string) int {
+	value, _ := strconv.Atoi(raw)
+	return value
+}
+
+func scaleFactorFromIndex(scaleIndex int) (float64, bool) {
+	switch scaleIndex {
+	case -1:
+		return 0.5, true
+	case 0:
+		return 1.0, true
+	case 1:
+		return 2.0, true
+	case 2:
+		return 4.0, true
+	default:
+		return 0, false
+	}
+}
+
+func formatFitLine(index int, candidate fit.Candidate,  targetW int, targetH int) string {
+	line := fmt.Sprintf("%2d. %s scale=%.2f  w=%d h=%d", index, candidate.Font, candidate.Scale, candidate.W, candidate.H)
+	if targetW > 0 {
+		line += fmt.Sprintf(" dw=%d", candidate.DW)
+	}
+	if targetH > 0 {
+		line += fmt.Sprintf(" dh=%d", candidate.DH)
+	}
+	return line
 }

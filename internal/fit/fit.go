@@ -78,6 +78,9 @@ func FindBest(text string, fonts []string, scales []float64, baseOptions ansifon
 				DW:    distance(targetW, w),
 				DH:    distance(targetH, h),
 			}
+			if candidate.DW < 0 || candidate.DH < 0 {
+				continue // Skip candidates that exceed target dimensions
+			}
 			candidates = append(candidates, candidate)
 		}
 	}
@@ -141,8 +144,5 @@ func distance(target int, actual int) int {
 	if target == 0 {
 		return 0
 	}
-	if actual >= target {
-		return actual - target
-	}
-	return target - actual
+	return  target -actual 
 }
