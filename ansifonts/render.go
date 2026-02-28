@@ -3,7 +3,6 @@ package ansifonts
 import (
 	"fmt"
 	"math"
-	"regexp"
 	"strings"
 	"unicode/utf8"
 )
@@ -84,7 +83,7 @@ func RenderTextWithFont(text string, fontData FontData, options RenderOptions) [
 
 		lineWidth := 0
 		for _, row := range lineRendered {
-			lineWidth = max(lineWidth, utf8.RuneCountInString(stripANSI(row)))
+			lineWidth = max(lineWidth, utf8.RuneCountInString(StripANSI(row)))
 		}
 
 		maxTextLineWidth = max(maxTextLineWidth, lineWidth)
@@ -119,11 +118,11 @@ func RenderTextWithFont(text string, fontData FontData, options RenderOptions) [
 	// Final pass to ensure all lines have the same width for consistent rendering
 	maxWidth := 0
 	for _, line := range allRenderedLines {
-		maxWidth = max(maxWidth, utf8.RuneCountInString(stripANSI(line)))
+		maxWidth = max(maxWidth, utf8.RuneCountInString(StripANSI(line)))
 	}
 
 	for i, line := range allRenderedLines {
-		lineWidth := utf8.RuneCountInString(stripANSI(line))
+		lineWidth := utf8.RuneCountInString(StripANSI(line))
 		if lineWidth < maxWidth {
 			allRenderedLines[i] = line + strings.Repeat(" ", maxWidth-lineWidth)
 		}
@@ -303,7 +302,7 @@ func applyAlignmentToTextLine(lineRendered []string, maxTextLineWidth int, align
 	// Find the actual width of this text line (use the widest row)
 	lineWidth := 0
 	for _, row := range lineRendered {
-		lineWidth = max(lineWidth, utf8.RuneCountInString(stripANSI(row)))
+		lineWidth = max(lineWidth, utf8.RuneCountInString(StripANSI(row)))
 	}
 
 	// If this line is already at max width, no alignment needed
@@ -328,7 +327,7 @@ func applyAlignmentToTextLine(lineRendered []string, maxTextLineWidth int, align
 	// Apply the same padding to all rows in this text line
 	alignedRows := make([]string, len(lineRendered))
 	for i, row := range lineRendered {
-		rowWidth := utf8.RuneCountInString(stripANSI(row))
+		rowWidth := utf8.RuneCountInString(StripANSI(row))
 
 		// Add left padding
 		alignedRow := strings.Repeat(" ", leftPadding) + row
@@ -344,14 +343,6 @@ func applyAlignmentToTextLine(lineRendered []string, maxTextLineWidth int, align
 	}
 
 	return alignedRows
-}
-
-// ANSI escape sequence regex for accurate stripping
-var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;]*m`)
-
-// stripANSI removes ANSI escape sequences for accurate width calculation
-func stripANSI(s string) string {
-	return ansiRegex.ReplaceAllString(s, "")
 }
 
 // stripEmptyLines removes empty lines from both the top and bottom of rendered text
