@@ -271,9 +271,7 @@ func main() {
 		fontCache := make(map[string]*ansifonts.Font)
 		for i := 0; i < fitLimit; i++ {
 			candidate := candidates[i]
-			if fitShowDims {
-			fmt.Println(formatFitLine(i+1, candidate, fitWidth, fitHeight))
-		}
+			fmt.Println(formatFitLine(i+1, candidate, fitShowDims, fitWidth, fitHeight, fitPriority))
 
 			font, ok := fontCache[candidate.Font]
 			if !ok {
@@ -422,13 +420,71 @@ func scaleFactorFromIndex(scaleIndex int) (float64, bool) {
 	}
 }
 
-func formatFitLine(index int, candidate fit.Candidate,  targetW int, targetH int) string {
-	line := fmt.Sprintf("%2d. %s scale=%.2f  w=%d h=%d", index, candidate.Font, candidate.Scale, candidate.W, candidate.H)
+func formatFitLine(index int, candidate fit.Candidate, showDims bool, targetW int, targetH int, priority string) string {
+	fontLabel := ansiColor(candidate.Font, colorGreen)
+	line := fmt.Sprintf("%2d. %s scale=%.2f priority=%s", index, fontLabel, candidate.Scale, strings.ToLower(priority))
+	if !showDims {
+		return line
+	}
+
+	wLabel := fmt.Sprintf("w=%d", candidate.W)
+	hLabel := fmt.Sprintf("h=%d", candidate.H)
+	if targetW > 0 {
+		wLabel = colorizeIf(wLabel, candidate.W <= targetW, colorGreen, colorRed)
+	}
+	if targetH > 0 {
+		hLabel = colorizeIf(hLabel, candidate.H <= targetH, colorGreen, colorRed)
+	}
+	line += " " + wLabel + " " + hLabel
+
+	if targetW > 0 {
+		line += " " + ansiColor(fmt.Sprintf("target-w=%d", targetW), colorPastelBlue)
+	}
+	if targetH > 0 {
+		line += " " + ansiColor(fmt.Sprintf("target-h=%d", targetH), colorPastelBlue)
+	}
 	if targetW > 0 {
 		line += fmt.Sprintf(" dw=%d", candidate.DW)
 	}
 	if targetH > 0 {
 		line += fmt.Sprintf(" dh=%d", candidate.DH)
 	}
+
 	return line
+}
+
+const (
+	colorPastelBlue = "#7FB3FF"
+	colorGreen      = "#2ECC71"
+	colorRed        = "#FF6B6B"
+)
+
+func colorizeIf(value string, condition bool, trueColor string, falseColor string) string {
+	if condition {
+		return ansiColor(value, trueColor)
+	}
+	return ansiColor(value, falseColor)
+}
+
+func ansiColor(value string, hexColor string) string {
+	r, g, b, ok := parseHexColor(hexColor)
+	if !ok {
+		return value
+	}
+	return fmt.Sprintf("\x1b[38;2;%d;%d;%dm%s\x1b[0m", r, g, b, value)
+}
+
+func parseHexColor(hexColor string) (int, int, int, bool) {
+	trimmed := strings.TrimPrefix(hexColor, "#")
+	if len(trimmed) != 6 {
+		return 0, 0, 0, false
+	}
+	value, err := strconv.ParseUint(trimmed, 16, 32)
+	if err != nil {
+		return 0, 0, 0, false
+	}
+	r := int((value >> 16) & 0xFF)
+	g := int((value >> 8) & 0xFF)
+	b := int(value & 0xFF)
+	return r, g, b, true
 }
