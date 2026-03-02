@@ -16,6 +16,7 @@ type Candidate struct {
 	H     int
 	DW    int
 	DH    int
+	Fits  bool
 }
 
 // Priority indicates which dimension should be prioritized in sorting.
@@ -77,9 +78,7 @@ func FindBest(text string, fonts []string, scales []float64, baseOptions ansifon
 				H:     h,
 				DW:    distance(targetW, w),
 				DH:    distance(targetH, h),
-			}
-			if candidate.DW < 0 || candidate.DH < 0 {
-				continue // Skip candidates that exceed target dimensions
+				Fits:  fitsWithin(targetW, targetH, w, h),
 			}
 			candidates = append(candidates, candidate)
 		}
@@ -117,19 +116,41 @@ func sortCandidates(candidates []Candidate, priority Priority) {
 		a := candidates[i]
 		b := candidates[j]
 
+		if a.Fits != b.Fits {
+			return a.Fits
+		}
+
 		if priority == PriorityHeight {
-			if a.DH != b.DH {
-				return a.DH < b.DH
-			}
-			if a.DW != b.DW {
-				return a.DW < b.DW
+			if a.Fits {
+				if a.DH != b.DH {
+					return a.DH < b.DH
+				}
+				if a.DW != b.DW {
+					return a.DW < b.DW
+				}
+			} else {
+				if absInt(a.DH) != absInt(b.DH) {
+					return absInt(a.DH) < absInt(b.DH)
+				}
+				if absInt(a.DW) != absInt(b.DW) {
+					return absInt(a.DW) < absInt(b.DW)
+				}
 			}
 		} else {
-			if a.DW != b.DW {
-				return a.DW < b.DW
-			}
-			if a.DH != b.DH {
-				return a.DH < b.DH
+			if a.Fits {
+				if a.DW != b.DW {
+					return a.DW < b.DW
+				}
+				if a.DH != b.DH {
+					return a.DH < b.DH
+				}
+			} else {
+				if absInt(a.DW) != absInt(b.DW) {
+					return absInt(a.DW) < absInt(b.DW)
+				}
+				if absInt(a.DH) != absInt(b.DH) {
+					return absInt(a.DH) < absInt(b.DH)
+				}
 			}
 		}
 
@@ -144,5 +165,22 @@ func distance(target int, actual int) int {
 	if target == 0 {
 		return 0
 	}
-	return  target -actual 
+	return target - actual
+}
+
+func fitsWithin(targetW int, targetH int, width int, height int) bool {
+	if targetW > 0 && width > targetW {
+		return false
+	}
+	if targetH > 0 && height > targetH {
+		return false
+	}
+	return true
+}
+
+func absInt(value int) int {
+	if value < 0 {
+		return -value
+	}
+	return value
 }

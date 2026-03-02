@@ -284,13 +284,17 @@ func main() {
 				fontCache[candidate.Font] = font
 			}
 
-			previewOptions := options
-			previewOptions.ScaleFactor = candidate.Scale
-			preview := ansifonts.RenderTextWithOptions(text, font, previewOptions)
-			for _, line := range preview {
-				fmt.Println(line)
+			printedPreview := false
+			if candidate.Fits {
+				previewOptions := options
+				previewOptions.ScaleFactor = candidate.Scale
+				preview := ansifonts.RenderTextWithOptions(text, font, previewOptions)
+				for _, line := range preview {
+					fmt.Println(line)
+				}
+				printedPreview = true
 			}
-			if i != fitLimit-1 {
+			if printedPreview && i != fitLimit-1 {
 				fmt.Println()
 			}
 		}
@@ -429,11 +433,12 @@ func formatFitLine(index int, candidate fit.Candidate, showDims bool, targetW in
 
 	wLabel := fmt.Sprintf("w=%d", candidate.W)
 	hLabel := fmt.Sprintf("h=%d", candidate.H)
-	if targetW > 0 {
-		wLabel = colorizeIf(wLabel, candidate.W <= targetW, colorGreen, colorRed)
+	priorityValue := strings.ToLower(priority)
+	if targetW > 0 && priorityValue == string(fit.PriorityWidth) {
+		wLabel = colorizeIf(wLabel, candidate.Fits, colorGreen, colorRed)
 	}
-	if targetH > 0 {
-		hLabel = colorizeIf(hLabel, candidate.H <= targetH, colorGreen, colorRed)
+	if targetH > 0 && priorityValue == string(fit.PriorityHeight) {
+		hLabel = colorizeIf(hLabel, candidate.Fits, colorGreen, colorRed)
 	}
 	line += " " + wLabel + " " + hLabel
 
