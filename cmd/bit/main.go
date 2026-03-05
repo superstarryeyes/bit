@@ -273,7 +273,9 @@ func main() {
 		fontCache := make(map[string]*ansifonts.Font)
 		for i := 0; i < fitLimit; i++ {
 			candidate := candidates[i]
-			fmt.Println(formatFitLine(i+1, candidate, fitShowDims, fitWidth, fitHeight, fitPriority))
+			if fitShowDims {
+				fmt.Println(formatFitLine(i+1, candidate, fitWidth, fitHeight, fitPriority))
+			}
 
 			font, ok := fontCache[candidate.Font]
 			if !ok {
@@ -413,13 +415,9 @@ func scaleFactorFromIndex(scaleIndex int) (float64, bool) {
 	}
 }
 
-func formatFitLine(index int, candidate fit.Candidate, showDims bool, targetW int, targetH int, priority string) string {
+func formatFitLine(index int, candidate fit.Candidate, targetW int, targetH int, priority string) string {
 	fontLabel := ansiColor(candidate.Font, colorGreen)
 	line := fmt.Sprintf("%2d. %s scale=%d priority=%s", index, fontLabel, candidate.ScaleIndex, strings.ToLower(priority))
-	if !showDims {
-		return line
-	}
-
 	wLabel := fmt.Sprintf("w=%d", candidate.W)
 	hLabel := fmt.Sprintf("h=%d", candidate.H)
 	priorityValue := strings.ToLower(priority)
