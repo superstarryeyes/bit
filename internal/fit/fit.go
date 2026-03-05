@@ -10,13 +10,19 @@ import (
 
 // Candidate represents a font and scale candidate with its measured dimensions.
 type Candidate struct {
-	Font  string
-	Scale float64
-	W     int
-	H     int
-	DW    int
-	DH    int
-	Fits  bool
+	Font       string
+	ScaleIndex int
+	W          int
+	H          int
+	DW         int
+	DH         int
+	Fits       bool
+}
+
+// ScaleOption represents a scale index and its factor.
+type ScaleOption struct {
+	Index  int
+	Factor float64
 }
 
 // Priority indicates which dimension should be prioritized in sorting.
@@ -37,7 +43,7 @@ func (err *MissingFontError) Error() string {
 }
 
 // FindBest renders text with each font/scale, measures it, and returns sorted candidates.
-func FindBest(text string, fonts []string, scales []float64, baseOptions ansifonts.RenderOptions, targetW int, targetH int, priority Priority) ([]Candidate, error) {
+func FindBest(text string, fonts []string, scales []ScaleOption, baseOptions ansifonts.RenderOptions, targetW int, targetH int, priority Priority) ([]Candidate, error) {
 	if len(fonts) == 0 {
 		return nil, fmt.Errorf("no fonts provided")
 	}
@@ -68,17 +74,17 @@ func FindBest(text string, fonts []string, scales []float64, baseOptions ansifon
 
 		for _, scale := range scales {
 			options := baseOptions
-			options.ScaleFactor = scale
+			options.ScaleFactor = scale.Factor
 			rendered := ansifonts.RenderTextWithOptions(text, fontObj, options)
 			w, h := ansifonts.MeasureBlock(rendered)
 			candidate := Candidate{
-				Font:  fontObj.Name,
-				Scale: scale,
-				W:     w,
-				H:     h,
-				DW:    distance(targetW, w),
-				DH:    distance(targetH, h),
-				Fits:  fitsWithin(targetW, targetH, w, h),
+				Font:       fontObj.Name,
+				ScaleIndex: scale.Index,
+				W:          w,
+				H:          h,
+				DW:         distance(targetW, w),
+				DH:         distance(targetH, h),
+				Fits:       fitsWithin(targetW, targetH, w, h),
 			}
 			candidates = append(candidates, candidate)
 		}
@@ -157,7 +163,10 @@ func sortCandidates(candidates []Candidate, priority Priority) {
 		if a.Font != b.Font {
 			return a.Font < b.Font
 		}
-		return a.Scale < b.Scale
+		if a.ScaleIndex != b.ScaleIndex {
+			return a.ScaleIndex > b.ScaleIndex
+		}
+		return false
 	})
 }
 

@@ -252,7 +252,7 @@ measured width/height and distance (`dw/dh`) in each preview header.
 | **Flag**         | **Description**                           | **Values**                          |
 | ---------------- | ----------------------------------------- | ----------------------------------- |
 | `-fit-fonts`     | CSV list of fonts to test                 | Font names (default: all)           |
-| `-fit-scales`    | CSV list of scale factors or scale steps  | `-1,0,1,2` or `0.5,1,2,4`           |
+| `-fit-scales`    | CSV list of scale indices                 | `-1,0,1,2`                          |
 | `-fit-width`     | Target width                              | Integer (0 disables width scoring)  |
 | `-fit-height`    | Target height                             | Integer (0 disables height scoring) |
 | `-fit-priority`  | Dimension priority for sorting            | `width` or `height`                 |

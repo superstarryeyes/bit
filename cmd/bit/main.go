@@ -56,7 +56,7 @@ func main() {
 	flag.BoolVar(&version, "version", false, "Show version information")
 	flag.StringVar(&loadFontPath, "load", "", "Path to a custom font file (.bit) OR a directory of fonts")
 	flag.StringVar(&fitFonts, "fit-fonts", "", "CSV list of fonts to test in fit mode")
-	flag.StringVar(&fitScales, "fit-scales", "", "CSV list of scale factors (e.g. 1.0,2.0) or scale steps (-1,0,1,2)")
+	flag.StringVar(&fitScales, "fit-scales", "", "CSV list of scale indices (-1,0,1,2)")
 	flag.IntVar(&fitWidth, "fit-width", 0, "Target width for fit mode")
 	flag.IntVar(&fitHeight, "fit-height", 0, "Target height for fit mode")
 	flag.StringVar(&fitPriority, "fit-priority", "width", "Fit priority: width or height")
@@ -173,8 +173,10 @@ func main() {
 	}
 
 	// Convert scaleInt to actual scale factor
+	scaleIndex := scaleInt
 	scale, ok := scaleFactorFromIndex(scaleInt)
 	if !ok {
+		scaleIndex = 0
 		scale = 1.0 // Default to 1x if invalid value provided
 		fmt.Fprintf(os.Stderr, "Warning: Invalid scale value '%d', using default scale (1x)\n", scaleInt)
 	}
@@ -243,7 +245,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		scalesToUse, err := resolveFitScales(fitScales, scale)
+		scalesToUse, err := resolveFitScales(fitScales, scaleIndex)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error parsing scales: %v\n", err)
 			os.Exit(1)
@@ -287,7 +289,11 @@ func main() {
 			printedPreview := false
 			if candidate.Fits {
 				previewOptions := options
-				previewOptions.ScaleFactor = candidate.Scale
+				previewScale, ok := scaleFactorFromIndex(candidate.ScaleIndex)
+				if !ok {
+					previewScale = 1.0
+				}
+				previewOptions.ScaleFactor = previewScale
 				preview := ansifonts.RenderTextWithOptions(text, font, previewOptions)
 				for _, line := range preview {
 					fmt.Println(line)
@@ -339,9 +345,13 @@ func resolveFitFonts(fontsCSV string, fallbackFont string) ([]string, error) {
 	return ansifonts.ListFonts()
 }
 
-func resolveFitScales(scalesCSV string, fallbackScale float64) ([]float64, error) {
+func resolveFitScales(scalesCSV string, fallbackScaleIndex int) ([]fit.ScaleOption, error) {
 	if scalesCSV == "" {
-		return []float64{fallbackScale}, nil
+		factor, ok := scaleFactorFromIndex(fallbackScaleIndex)
+		if !ok {
+			return nil, fmt.Errorf("invalid scale index %d", fallbackScaleIndex)
+		}
+		return []fit.ScaleOption{{Index: fallbackScaleIndex, Factor: factor}}, nil
 	}
 
 	parts := splitCSV(scalesCSV)
@@ -349,13 +359,14 @@ func resolveFitScales(scalesCSV string, fallbackScale float64) ([]float64, error
 		return nil, fmt.Errorf("no scales provided")
 	}
 
-	values := make([]float64, 0, len(parts))
+	values := make([]fit.ScaleOption, 0, len(parts))
 	for _, raw := range parts {
-		value, err := parseScaleValue(raw)
+		scaleIndex, err := parseScaleIndex(raw)
 		if err != nil {
 			return nil, err
 		}
-		values = append(values, value)
+		factor, _ := scaleFactorFromIndex(scaleIndex)
+		values = append(values, fit.ScaleOption{Index: scaleIndex, Factor: factor})
 	}
 	return values, nil
 }
@@ -373,40 +384,18 @@ func splitCSV(value string) []string {
 	return results
 }
 
-func parseScaleValue(raw string) (float64, error) {
-	if isScaleIndex(raw) {
-		value, ok := scaleFactorFromIndex(mustAtoi(raw))
-		if !ok {
-			return 0, fmt.Errorf("invalid scale index %q", raw)
-		}
-		return value, nil
-	}
-
-	value, err := strconv.ParseFloat(raw, 64)
-	if err != nil {
-		return 0, fmt.Errorf("invalid scale %q", raw)
-	}
-	if value < ansifonts.MinScaleFactor || value > ansifonts.MaxScaleFactor {
-		return 0, fmt.Errorf("scale %q out of range", raw)
-	}
-	return value, nil
-}
-
-func isScaleIndex(raw string) bool {
+func parseScaleIndex(raw string) (int, error) {
 	if strings.ContainsAny(raw, ".eE") {
-		return false
+		return 0, fmt.Errorf("invalid scale index %q", raw)
 	}
 	value, err := strconv.Atoi(raw)
 	if err != nil {
-		return false
+		return 0, fmt.Errorf("invalid scale index %q", raw)
 	}
-	_, ok := scaleFactorFromIndex(value)
-	return ok
-}
-
-func mustAtoi(raw string) int {
-	value, _ := strconv.Atoi(raw)
-	return value
+	if _, ok := scaleFactorFromIndex(value); !ok {
+		return 0, fmt.Errorf("invalid scale index %q", raw)
+	}
+	return value, nil
 }
 
 func scaleFactorFromIndex(scaleIndex int) (float64, bool) {
@@ -426,7 +415,7 @@ func scaleFactorFromIndex(scaleIndex int) (float64, bool) {
 
 func formatFitLine(index int, candidate fit.Candidate, showDims bool, targetW int, targetH int, priority string) string {
 	fontLabel := ansiColor(candidate.Font, colorGreen)
-	line := fmt.Sprintf("%2d. %s scale=%.2f priority=%s", index, fontLabel, candidate.Scale, strings.ToLower(priority))
+	line := fmt.Sprintf("%2d. %s scale=%d priority=%s", index, fontLabel, candidate.ScaleIndex, strings.ToLower(priority))
 	if !showDims {
 		return line
 	}

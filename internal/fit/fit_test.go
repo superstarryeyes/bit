@@ -7,19 +7,19 @@ import (
 
 func TestSortCandidatesWidthPriority(t *testing.T) {
 	candidates := []Candidate{
-		{Font: "b", Scale: 1, DW: 1, DH: 4, Fits: true},
-		{Font: "a", Scale: 2, DW: 1, DH: 2, Fits: true},
-		{Font: "a", Scale: 1, DW: 1, DH: 2, Fits: true},
-		{Font: "c", Scale: 1, DW: 0, DH: 7, Fits: true},
+		{Font: "b", ScaleIndex: 0, DW: 1, DH: 4, Fits: true},
+		{Font: "a", ScaleIndex: 1, DW: 1, DH: 2, Fits: true},
+		{Font: "a", ScaleIndex: 0, DW: 1, DH: 2, Fits: true},
+		{Font: "c", ScaleIndex: 0, DW: 0, DH: 7, Fits: true},
 	}
 
 	sortCandidates(candidates, PriorityWidth)
 
 	expected := []Candidate{
-		{Font: "c", Scale: 1, DW: 0, DH: 7, Fits: true},
-		{Font: "a", Scale: 1, DW: 1, DH: 2, Fits: true},
-		{Font: "a", Scale: 2, DW: 1, DH: 2, Fits: true},
-		{Font: "b", Scale: 1, DW: 1, DH: 4, Fits: true},
+		{Font: "c", ScaleIndex: 0, DW: 0, DH: 7, Fits: true},
+		{Font: "a", ScaleIndex: 1, DW: 1, DH: 2, Fits: true},
+		{Font: "a", ScaleIndex: 0, DW: 1, DH: 2, Fits: true},
+		{Font: "b", ScaleIndex: 0, DW: 1, DH: 4, Fits: true},
 	}
 
 	if !reflect.DeepEqual(candidates, expected) {
@@ -29,19 +29,19 @@ func TestSortCandidatesWidthPriority(t *testing.T) {
 
 func TestSortCandidatesHeightPriority(t *testing.T) {
 	candidates := []Candidate{
-		{Font: "b", Scale: 1, DW: 4, DH: 1, Fits: true},
-		{Font: "a", Scale: 2, DW: 2, DH: 1, Fits: true},
-		{Font: "a", Scale: 1, DW: 2, DH: 1, Fits: true},
-		{Font: "c", Scale: 1, DW: 7, DH: 0, Fits: true},
+		{Font: "b", ScaleIndex: 0, DW: 4, DH: 1, Fits: true},
+		{Font: "a", ScaleIndex: 1, DW: 2, DH: 1, Fits: true},
+		{Font: "a", ScaleIndex: 0, DW: 2, DH: 1, Fits: true},
+		{Font: "c", ScaleIndex: 0, DW: 7, DH: 0, Fits: true},
 	}
 
 	sortCandidates(candidates, PriorityHeight)
 
 	expected := []Candidate{
-		{Font: "c", Scale: 1, DW: 7, DH: 0, Fits: true},
-		{Font: "a", Scale: 1, DW: 2, DH: 1, Fits: true},
-		{Font: "a", Scale: 2, DW: 2, DH: 1, Fits: true},
-		{Font: "b", Scale: 1, DW: 4, DH: 1, Fits: true},
+		{Font: "c", ScaleIndex: 0, DW: 7, DH: 0, Fits: true},
+		{Font: "a", ScaleIndex: 1, DW: 2, DH: 1, Fits: true},
+		{Font: "a", ScaleIndex: 0, DW: 2, DH: 1, Fits: true},
+		{Font: "b", ScaleIndex: 0, DW: 4, DH: 1, Fits: true},
 	}
 
 	if !reflect.DeepEqual(candidates, expected) {
