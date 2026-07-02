@@ -111,8 +111,9 @@ type FontData struct {
 
 // Color options for text with proper hex codes
 type ColorOption struct {
-	Name string
-	Hex  string
+	Name             string
+	Hex              string
+	ExcludeFromRandom bool
 }
 
 // Gradient direction options

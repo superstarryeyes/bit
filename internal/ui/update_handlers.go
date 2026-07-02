@@ -622,8 +622,18 @@ func (m *model) handleShadowStyle(direction string) {
 // handleRandomize randomizes font and color settings
 func (m *model) handleRandomize() {
 	m.font.selectedFont = rand.IntN(len(m.font.fonts))
-	m.color.textColor = rand.IntN(len(colorOptions))
-	m.color.gradientColor = rand.IntN(len(colorOptions))
+
+	var validIndices []int
+	for i, c := range colorOptions {
+		if !c.ExcludeFromRandom {
+			validIndices = append(validIndices, i)
+		}
+	}
+
+	if len(validIndices) > 0 {
+		m.color.textColor = validIndices[rand.IntN(len(validIndices))]
+		m.color.gradientColor = validIndices[rand.IntN(len(validIndices))]
+	}
 	m.color.gradientEnabled = (m.color.gradientColor != m.color.textColor)
 	m.color.gradientDirection = GradientDirection(rand.IntN(int(TotalGradientDirections)))
 

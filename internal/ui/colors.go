@@ -75,5 +75,17 @@ func GetANSIColorOptions() []ColorOption {
 		}
 	}
 
+	// Append grey colors excluded from randomization
+	options = append(options, ColorOption{
+		Name:              "Grey",
+		Hex:               "#808080",
+		ExcludeFromRandom: true,
+	})
+	options = append(options, ColorOption{
+		Name:              "Light Grey",
+		Hex:               "#D3D3D3",
+		ExcludeFromRandom: true,
+	})
+
 	return options
 }
