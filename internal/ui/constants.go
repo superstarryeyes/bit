@@ -28,6 +28,7 @@ type TextInputMode int
 
 const (
 	TextEntryMode TextInputMode = iota
+	TextKerningMode
 	TextAlignmentMode
 	TotalTextInputModes
 )

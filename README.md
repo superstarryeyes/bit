@@ -24,7 +24,7 @@
 | **📤 Multi-Format Export**              | Export to TXT, Go, JavaScript, Python, Rust, and Bash with language-specific formatting.               |
 | **🎨 Advanced Text Effects**            | Color gradient effects (horizontal & vertical), shadow effects (horizontal & vertical), and text scaling (0.5×–4×).|
 | **🌈 Rich Color Support**               | 14 vibrant predefined UI colors that can be combined with gradients. The library and CLI also accept any hex color for unlimited possibilities.|
-| **📐 Alignment & Spacing**                   | Adjust character, word, and line spacing. Align text left, center, or right.          |
+| **📐 Alignment & Spacing**                   | Adjust character, word, line spacing, and per-character manual kerning. Align text left, center, or right.          |
 | **⚡️ Smart Typography**                 | Automatic kerning, descender detection and alignment.           |
 | **🛠️ Powerful CLI Tool**                | Render text quickly with extended options for fonts, colors, spacing, and effects.            |
 | **📚 Standalone Go Library**           | A simple, self-contained API with type-safe enums for effortless programmatic ANSI text rendering.                           |
@@ -133,9 +133,9 @@ bit -help
 
 | **Key Binding**                         | **Action Description**                                                                         |
 | --------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `← →`                                   | Navigate between the 6 main control panels                                                     |
+| `← →` / `h l`                           | Navigate between the 6 main control panels                                                     |
+| `↑ ↓` / `k j`                           | Adjust values in the currently selected panel or navigate text rows in multi-line mode        |
 | `Tab`                                   | Access sub-modes within panels   |
-| `↑ ↓`                                   | Adjust values in the currently selected panel or navigate text rows in multi-line mode        |
 | `Enter`                                 | Activate/deactivate text input mode for editing      |
 | `r`                                     | Randomize font, colors, and gradient settings for instant inspiration                          |
 | `e`                                     | Enter export mode to save your creation in various formats                                     |
@@ -145,12 +145,16 @@ bit -help
 
 The UI features **6 main control panels** with sub-modes accessible via **Tab** key:
 
-#### 1. 🔴 **Text Input Panel** (2 modes)
+#### 1. 🔴 **Text Input Panel** (3 modes)
    - **Text Input Mode**: Enter and edit text with multi-line support
      - Press `↓` to create new row
      - Press `↑↓` to navigate between rows
      - Cursor positions are tracked per-row
      - The row count is shown in label when editing multiple rows
+   - **Text Kerning Mode**: Fine-tune letter spacing at the cursor position
+     - Press `←→` or `h/l` to move the cursor through the current row
+     - Press `↑↓` or `k/j` to increase/decrease spacing by one pixel
+     - The current manual kerning value is shown in the label as `+1`, `-2`, etc.
    - **Text Alignment Mode**: Choose Left, Center, or Right alignment
 
 #### 2. 🟢 **Font Selection Panel**

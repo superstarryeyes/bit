@@ -153,42 +153,129 @@ func (m *model) handleTextPanelUpdate(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "tab":
 		m.textInput.mode = TextInputMode((int(m.textInput.mode) + 1) % int(TotalTextInputModes))
-		m.textInput.input.Blur()
-	case "up", "down":
+		if m.textInput.mode == TextKerningMode {
+			m.textInput.input.Focus()
+		} else {
+			m.textInput.input.Blur()
+		}
+	case "up", "down", "k", "j":
 		if m.textInput.mode == TextEntryMode && m.textInput.input.Focused() {
-			m.handleMultiRowNavigation(msg.String())
+			if msg.String() == "up" || msg.String() == "down" {
+				m.handleMultiRowNavigation(msg.String())
+			}
+		} else if m.textInput.mode == TextKerningMode && m.textInput.input.Focused() {
+			if isUpKey(msg.String()) {
+				m.adjustCustomKerning(1)
+			} else {
+				m.adjustCustomKerning(-1)
+			}
 		} else if m.textInput.mode == TextAlignmentMode {
 			m.handleTextAlignment(msg.String())
 		}
 	case "enter":
-		if m.textInput.mode == TextEntryMode {
+		if m.textInput.mode == TextEntryMode || m.textInput.mode == TextKerningMode {
 			m.handleTextInputToggle()
 		}
 	case "e", "r":
 		// Check if text input is focused before handling special keys
-		if m.textInput.input.Focused() {
+		if m.textInput.mode == TextEntryMode && m.textInput.input.Focused() {
 			// Let text input process the key
-			m.textInput.input, cmd = m.textInput.input.Update(msg)
+			cmd = m.updateFocusedTextInput(msg)
 			return m, cmd
 		}
 		// Not focused, handle as special command
 		return m, nil
-	case "k", "j":
-		if m.textInput.mode == TextEntryMode && m.textInput.input.Focused() {
-			// Let text input process the key
-			m.textInput.input, cmd = m.textInput.input.Update(msg)
-			return m, cmd
-		} else if m.textInput.mode == TextAlignmentMode {
-			m.handleTextAlignment(msg.String())
-		}
 	default:
-		if m.textInput.input.Focused() {
-			m.textInput.input, cmd = m.textInput.input.Update(msg)
+		if m.textInput.mode == TextEntryMode && m.textInput.input.Focused() {
+			cmd = m.updateFocusedTextInput(msg)
 			return m, cmd
 		}
 	}
 
 	return m, cmd
+}
+
+func (m *model) adjustCustomKerning(delta int) {
+	row := m.textInput.currentRow
+	cursor := m.textInput.input.Position()
+	m.ensureKerningRow(row)
+	m.textInput.customKerning[row][cursor] += delta
+	if m.textInput.customKerning[row][cursor] == 0 {
+		delete(m.textInput.customKerning[row], cursor)
+	}
+	m.renderText()
+}
+
+func (m *model) ensureKerningRow(row int) {
+	if m.textInput.customKerning == nil {
+		m.textInput.customKerning = make(map[int]map[int]int)
+	}
+	if m.textInput.customKerning[row] == nil {
+		m.textInput.customKerning[row] = make(map[int]int)
+	}
+}
+
+func (m *model) updateFocusedTextInput(msg tea.KeyMsg) tea.Cmd {
+	row := m.textInput.currentRow
+	oldValue := m.textInput.input.Value()
+	oldCursor := m.textInput.input.Position()
+	oldLen := len([]rune(oldValue))
+
+	var cmd tea.Cmd
+	m.textInput.input, cmd = m.textInput.input.Update(msg)
+
+	newValue := m.textInput.input.Value()
+	newLen := len([]rune(newValue))
+	m.shiftCustomKerning(row, oldCursor, oldLen, newLen)
+	if row < len(m.textInput.textRows) {
+		m.textInput.textRows[row] = newValue
+	}
+	m.updateCurrentTextFromRows()
+	m.renderText()
+	return cmd
+}
+
+func (m *model) shiftCustomKerning(row, oldCursor, oldLen, newLen int) {
+	rowKerning := m.textInput.customKerning[row]
+	if len(rowKerning) == 0 {
+		return
+	}
+	if newLen == 0 {
+		m.textInput.customKerning[row] = make(map[int]int)
+		return
+	}
+
+	delta := newLen - oldLen
+	if delta == 0 {
+		return
+	}
+
+	shifted := make(map[int]int, len(rowKerning))
+	if delta > 0 {
+		for index, value := range rowKerning {
+			if index >= oldCursor {
+				index += delta
+			}
+			shifted[index] = value
+		}
+	} else {
+		deletedCount := -delta
+		deleteStart := oldCursor + delta
+		if deleteStart < 0 {
+			deleteStart = 0
+		}
+		deleteEnd := deleteStart + deletedCount
+		for index, value := range rowKerning {
+			if index >= deleteStart && index < deleteEnd {
+				continue
+			}
+			if index >= deleteEnd {
+				index += delta
+			}
+			shifted[index] = value
+		}
+	}
+	m.textInput.customKerning[row] = shifted
 }
 
 // handleMultiRowNavigation handles up/down navigation in multi-row text input
@@ -253,6 +340,7 @@ func (m *model) handleMultiRowNavigation(direction string) {
 			m.textInput.textRows = append(m.textInput.textRows, "")
 			// Extend rowCursors slice
 			m.textInput.rowCursors = append(m.textInput.rowCursors, 0)
+			m.ensureKerningRow(m.textInput.currentRow + 1)
 			m.textInput.currentRow++
 			m.textInput.input.SetValue("")
 			m.textInput.input.SetCursor(0)

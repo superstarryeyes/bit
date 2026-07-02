@@ -1,19 +1,20 @@
 package ui
 
 import (
-	"github.com/superstarryeyes/bit/internal/export"
 	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/superstarryeyes/bit/internal/export"
 )
 
 // textInputModel handles text entry and alignment
 type textInputModel struct {
-	input       textinput.Model
-	currentText string
-	textRows    []string      // Multiple rows of text
-	rowCursors  []int         // Cursor positions for each row
-	currentRow  int           // Currently selected row for editing
-	alignment   TextAlignment // Text alignment
-	mode        TextInputMode // Text input panel sub-mode
+	input         textinput.Model
+	currentText   string
+	textRows      []string            // Multiple rows of text
+	rowCursors    []int               // Cursor positions for each row
+	customKerning map[int]map[int]int // Per-row, per-cursor manual spacing adjustments
+	currentRow    int                 // Currently selected row for editing
+	alignment     TextAlignment       // Text alignment
+	mode          TextInputMode       // Text input panel sub-mode
 }
 
 // fontModel handles font selection

@@ -69,9 +69,10 @@ const (
 // RenderOptions contains all the options for rendering text
 type RenderOptions struct {
 	// Spacing options
-	CharSpacing int // Character spacing (0 to 10)
-	WordSpacing int // Word spacing (0 to 20)
-	LineSpacing int // Line spacing (0 to 10)
+	CharSpacing   int                 // Character spacing (0 to 10)
+	WordSpacing   int                 // Word spacing (0 to 20)
+	LineSpacing   int                 // Line spacing (0 to 10)
+	CustomKerning map[int]map[int]int // Per-line, per-character pixel spacing adjustments
 
 	// Text alignment
 	Alignment TextAlignment

@@ -122,8 +122,18 @@ func (m model) createTextInputLabel(labelWidth int) string {
 			} else {
 				labelText = "Text Input"
 			}
+			if kerning := m.textInput.customKerning[m.textInput.currentRow][m.textInput.input.Position()]; kerning != 0 {
+				labelText = fmt.Sprintf("%s %+d", labelText, kerning)
+			}
 		} else {
 			labelText = "Text Input"
+		}
+	} else if m.textInput.mode == TextKerningMode {
+		labelText = "Text Kerning"
+		if m.uiState.focusedPanel == TextInputPanel && m.textInput.input.Focused() {
+			if kerning := m.textInput.customKerning[m.textInput.currentRow][m.textInput.input.Position()]; kerning != 0 {
+				labelText = fmt.Sprintf("%s %+d", labelText, kerning)
+			}
 		}
 	} else {
 		labelText = "Text Alignment"

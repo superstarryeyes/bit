@@ -73,13 +73,13 @@ func RenderTextWithFont(text string, fontData FontData, options RenderOptions) [
 
 	// First pass: render each text line and find the maximum width for alignment
 	maxTextLineWidth := 0
-	for _, line := range textLines {
+	for lineIndex, line := range textLines {
 		if line == "" {
 			renderedTextLines = append(renderedTextLines, []string{""})
 			continue
 		}
 
-		lineRendered := renderTextWithFont(line, fontData, options.CharSpacing, float64(options.WordSpacing), options.ScaleFactor)
+		lineRendered := renderTextWithFont(line, fontData, options.CharSpacing, float64(options.WordSpacing), options.ScaleFactor, options.CustomKerning[lineIndex])
 		lineRendered = stripEmptyLines(lineRendered)
 
 		lineWidth := 0
@@ -393,7 +393,7 @@ func stripEmptyLines(lines []string) []string {
 }
 
 // renderTextWithFont renders text using the specified font with proven rendering logic
-func renderTextWithFont(text string, fontData FontData, baseCharSpacing int, wordSpacing float64, scaleFactor float64) []string {
+func renderTextWithFont(text string, fontData FontData, baseCharSpacing int, wordSpacing float64, scaleFactor float64, lineKerning map[int]int) []string {
 	if text == "" {
 		return []string{}
 	}
@@ -566,6 +566,10 @@ func renderTextWithFont(text string, fontData FontData, baseCharSpacing int, wor
 					} else {
 						prevCharTotalAdvance += float64(optimalInterCharSpacing) + float64(baseCharSpacing) + halfPixelAdjustment
 					}
+				}
+
+				if adjustment, ok := lineKerning[idx]; ok {
+					prevCharTotalAdvance += float64(adjustment)
 				}
 
 				charStartPositions[idx] = charStartPositions[idx-1] + prevCharTotalAdvance

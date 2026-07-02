@@ -100,6 +100,9 @@ func (m *model) createPanelContents(contentWidth int) (string, string, string, s
 	if m.uiState.focusedPanel == TextInputPanel && m.textInput.mode == TextEntryMode && m.textInput.input.Focused() {
 		// When in text input edit mode, show just the textinput component
 		textPanelContent = m.textInput.input.View()
+	} else if m.uiState.focusedPanel == TextInputPanel && m.textInput.mode == TextKerningMode {
+		// When in kerning mode, keep the text and cursor visible for positioning.
+		textPanelContent = m.textInput.input.View()
 	} else if m.uiState.focusedPanel == TextInputPanel && m.textInput.mode == TextAlignmentMode {
 		// When in text alignment mode, show current alignment
 		alignmentNames := []string{"Left", "Center", "Right"}

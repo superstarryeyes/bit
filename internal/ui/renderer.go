@@ -47,6 +47,7 @@ func (m *model) renderText() {
 		ShadowHorizontalOffset: m.shadow.horizontalOffset,
 		ShadowVerticalOffset:   m.shadow.verticalOffset,
 		ShadowStyle:            ansifonts.ShadowStyle(m.shadow.style),
+		CustomKerning:          m.textInput.customKerning,
 	}
 
 	// Check for half-pixel usage to show warning in UI

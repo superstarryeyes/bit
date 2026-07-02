@@ -60,13 +60,14 @@ func InitialModel() (model, error) {
 
 	m := model{
 		textInput: textInputModel{
-			input:       ti,
-			currentText: "Hello",
-			textRows:    initialTextRows,   // Initialize with one row
-			rowCursors:  initialRowCursors, // Initialize cursor positions for each row
-			currentRow:  0,                 // Start with first row
-			alignment:   CenterAlignment,   // Start with center alignment
-			mode:        TextEntryMode,     // Start with text input mode
+			input:         ti,
+			currentText:   "Hello",
+			textRows:      initialTextRows,            // Initialize with one row
+			rowCursors:    initialRowCursors,          // Initialize cursor positions for each row
+			customKerning: map[int]map[int]int{0: {}}, // Initialize first row's kerning map
+			currentRow:    0,                          // Start with first row
+			alignment:     CenterAlignment,            // Start with center alignment
+			mode:          TextEntryMode,              // Start with text input mode
 		},
 		font: fontModel{
 			fonts:        fonts,
@@ -160,11 +161,42 @@ func (m *model) handleInputModeKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "shift+tab":
 		m.uiState.focusedPanel = FocusedPanel((int(m.uiState.focusedPanel) - 1 + int(TotalPanels)) % int(TotalPanels))
 		m.textInput.input.Blur()
-	case "left":
-		return m.handlePanelNavigation(-1)
-	case "right":
+	case "left", "right":
+		if m.uiState.focusedPanel == TextInputPanel && m.textInput.mode == TextKerningMode && m.textInput.input.Focused() {
+			m.textInput.input, cmd = m.textInput.input.Update(msg)
+			return m, cmd
+		}
+		if msg.String() == "left" {
+			return m.handlePanelNavigation(-1)
+		}
+		return m.handlePanelNavigation(1)
+	case "h", "l":
+		if m.uiState.focusedPanel == TextInputPanel && m.textInput.mode == TextKerningMode && m.textInput.input.Focused() {
+			keyType := tea.KeyRight
+			if msg.String() == "h" {
+				keyType = tea.KeyLeft
+			}
+			m.textInput.input, cmd = m.textInput.input.Update(tea.KeyMsg{Type: keyType})
+			return m, cmd
+		}
+		if m.textInput.mode == TextEntryMode && m.textInput.input.Focused() {
+			cmd = m.updateFocusedTextInput(msg)
+			return m, cmd
+		}
+		if msg.String() == "h" {
+			return m.handlePanelNavigation(-1)
+		}
 		return m.handlePanelNavigation(1)
 	case "up", "down":
+		return m, m.handleUpDownKeys(msg)
+	case "k", "j":
+		if m.uiState.focusedPanel == TextInputPanel && m.textInput.mode == TextKerningMode && m.textInput.input.Focused() {
+			return m, m.handleUpDownKeys(msg)
+		}
+		if m.textInput.mode == TextEntryMode && m.textInput.input.Focused() {
+			cmd = m.updateFocusedTextInput(msg)
+			return m, cmd
+		}
 		return m, m.handleUpDownKeys(msg)
 	case "enter":
 		return m, m.handleEnterKey()
@@ -226,7 +258,11 @@ func (m *model) handleTabKey() tea.Cmd {
 	switch m.uiState.focusedPanel {
 	case TextInputPanel:
 		m.textInput.mode = TextInputMode((int(m.textInput.mode) + 1) % int(TotalTextInputModes))
-		m.textInput.input.Blur()
+		if m.textInput.mode == TextKerningMode {
+			m.textInput.input.Focus()
+		} else {
+			m.textInput.input.Blur()
+		}
 	case SpacingPanel:
 		m.spacing.mode = SpacingMode((int(m.spacing.mode) + 1) % int(TotalSpacingModes))
 	case ColorPanel:
@@ -262,7 +298,7 @@ func (m *model) handleUpDownKeys(msg tea.KeyMsg) tea.Cmd {
 
 // handleEnterKey handles enter key presses
 func (m *model) handleEnterKey() tea.Cmd {
-	if m.uiState.focusedPanel == TextInputPanel && m.textInput.mode == TextEntryMode {
+	if m.uiState.focusedPanel == TextInputPanel && (m.textInput.mode == TextEntryMode || m.textInput.mode == TextKerningMode) {
 		m.handleTextInputToggle()
 	}
 	return nil
@@ -414,5 +450,5 @@ func isDownKey(txt string) bool {
 }
 
 func (m *model) isInputMode() bool {
-	return m.uiState.focusedPanel == TextInputPanel && m.textInput.mode == TextEntryMode && m.textInput.input.Focused()
+	return m.uiState.focusedPanel == TextInputPanel && (m.textInput.mode == TextEntryMode || m.textInput.mode == TextKerningMode) && m.textInput.input.Focused()
 }
